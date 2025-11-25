@@ -1,0 +1,147 @@
+---
+title: "Final Project - Option 2"
+date: "`r Sys.Date()`"
+bibliography: paperdti.bib
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, autodep=TRUE, cache.comments=TRUE)
+```
+
+```{r load_data, echo=TRUE, message=FALSE}
+library(R.matlab)
+library(dplyr)
+library(ggplot2)
+
+# --- 1. Load Structural Data (TNPCA Coefficients) ---
+struct_path <- "Data/TNPCA_Result/TNPCA_Coeff_HCP_Structural_Connectome.mat"
+struct_data <- readMat(struct_path)
+
+# FIX: Force the 3D array (1x1065x60) into a 2D matrix (1065 rows x 60 cols)
+# We use 'matrix()' to flatten it correctly, preserving the subject order
+struct_coeffs <- matrix(struct_data$PCA.Coeff, nrow = 1065, ncol = 60)
+struct_ids    <- as.vector(struct_data$sub.id)
+
+# Name the columns PC1...PC60 immediately
+colnames(struct_coeffs) <- paste0("PC", 1:60)
+
+# Create a clean dataframe for the brain features
+brain_df <- data.frame(Subject = struct_ids, struct_coeffs)
+
+# --- 2. Load Trait Data ---
+traits_path <- "Data/traits/table1_hcp.csv"
+traits_df   <- read.csv(traits_path)
+
+# --- 3. Merge ---
+# Inner join ensures we match traits to the correct brain scan
+full_data <- inner_join(traits_df, brain_df, by = "Subject")
+
+# Verification: Variance should be > 0 (meaning points are different)
+print(paste("Data Loaded. Rows:", nrow(full_data)))
+print(paste("PC1 Variance:", var(full_data$PC1)))
+```
+
+```{r viz_pca, echo=TRUE, message=FALSE, warning=FALSE}
+# --- 1. Plot PC1 vs PC2 colored by Gender ---
+p1 <- ggplot(full_data, aes(x = PC1, y = PC2, color = Gender)) +
+  geom_point(alpha = 0.7, size = 2) +
+  theme_minimal() +
+  labs(title = "Brain Structure: Male vs Female",
+       subtitle = "Colored by Gender")
+
+# --- 2. Plot PC1 vs PC2 colored by Age ---
+p2 <- ggplot(full_data, aes(x = PC1, y = PC2, color = Age)) +
+  geom_point(alpha = 0.7, size = 2) +
+  theme_minimal() +
+  labs(title = "Brain Structure: Age Groups",
+       subtitle = "Colored by Age Range")
+
+# Print plots
+print(p1)
+print(p2)
+```
+
+## Introduction
+
+The human brain structural connectome,  defined here as the collection of white matter fiber tracts connecting different regions of the brain [see @park2013structural],[@fornito2013graph],[@craddock2013imaging] and [@Jones2013], plays a crucial role in how the brain responds to everyday tasks and life's challenges.  There has been a huge interest in studying connectomes and understanding how they vary for individuals in different groups according to traits and substance exposures. Such studies have typically focused on functional connectomes instead of structural connectomes [see @park2013structural], [@finn2015functional], [@bjork2014effects], [@smith2015positive], and [@price2012review], due to the difficulty of recovering reliable structural connectomes [@maier2016tractography], [@reveley2015superficial]. If you are interested to learn more, you can download and read these papers. 
+
+Recent advances in noninvasive brain imaging and preprocessing have produced huge brain imaging datasets (e.g., the Human Connectome Project [@van2013wu] and the UK Biobank [@miller2016multimodal]) along with sophisticated tools  to routinely extract brain structural connectomes for different individuals. We will mainly focus on the Humcan Connectome Project. You can get an overview of this project from (https://www.humanconnectome.org/). You will find that there are different studies: Young Adult HCP, Lifespan HCP and so on. We will focus on the Yong Adult HCP. **For students who decided to choose this project, you need to register an account at (https://db.humanconnectome.org/) to agree with their data usage terms.**
+
+Relying on high quality imaging data and many different traits for a large number of study participants obtained in the Human Connectome Project (HCP) we can extract reliable structural connectomes and different traits and substance exposures measures. The goal of this project is to analyze relationships between them. 
+
+**Human Connectome Project (HCP)**. The HCP aims to characterize human brain connectivity in about $1,200$ healthy adults and to enable detailed comparisons between brain circuits, behavior and genetics at the level of individual subjects. Customized scanners were used to produce high-quality and consistent data to measure brain connectivity. The latest release in 2017, containing various traits, structural MRI (sMRI) and diffusion MRI (dMRI)  data for $1065$ healthy adults, can be easily accessed through ConnectomeDB. The rich trait data, high-resolution dMRI and sMRI make it an ideal data set for studying relationships between connectomes and human traits.
+
+(Some background on diffusion MRI, not necessary to understand everything) A full diffusion MRI session in HCP includes 6 runs (each approximately 10 minutes),
+representing 3 different gradient tables, with each table acquired once with right-to-left and left-to-right phase encoding polarities, respectively. Each gradient table includes approximately $90$
+diffusion weighting directions plus 6 $b_0$ acquisitions interspersed throughout each
+run.  Within each run, there are  three shells of $b=1000, 2000$, and $3000$ s/mm$^2$ interspersed
+with an approximately equal number of acquisitions on each shell.   The directions were optimized so that
+every subset of the first $N$ directions is also isotropic. The scan was done by using the Spin-echo EPI sequence on a 3 Tesla customized Connectome Scanner. See [@VanEssen20122222] for more details about the data acquisition of HPC. Such settings give the final acquired image with isotropic voxel size of $1.25$ mm, and $270$ diffusion weighted scans distributed equally over $3$ shells.
+
+**Structural Connectome Reconstruction**. The first step toward structrual connectome reconstruction is to rebuild fibers (called tractography) from dMRI measures. We use a method in [@Girard2014266], and [@maier2016tractography]  to generate the whole-brain tractography data set of  each subject  for all data sets. The method borrows anatomical information from high-resolution T1-weighted imaging to reduce bias in reconstruction of tractography. Also the parameters are selected based on evaluation of various global connectivity metrics in \citep{Girard2014266}. In the generated tractography data, each streamline has a step size of 0.2 mm. On average, $10^5$ voxels were identified as the seeding region (white matter and gray matter interface region) for each individual in the HCP data set (with isotropic voxel size of 1.25 mm).  For each seeding voxel, we initialized $16$ fibers to generate about $10^6$ fibers for each subject.  
+
+We then segement the whole brain into a few regions of interest so that we can extract a connectivity matrix for each subject to describe which brain regions are connected. Usually, this step is done by utlizing some well known atlas/template predefined by brain anatomist. One of the most common one is called Desikan-Killiany atlas. The Desikan-Killiany atlas parcellate the brain into 68 cortical surface regions with 34 nodes in each hemisphere. Freesurfer software can be used to perform brain registration and parcellation. Figure 1 column (a) illustrates the Desikan-Killiany parcellation and a reconstructed tractography data after subsampling. 
+
+![**Figure 1** - Pipeline of the preprocessing steps to extract weighted networks from the dMRI and sMRI image data. (a) Desikan-Killiany parcellation and the tractography data for an individual's brain; (b) extraction of streamlines between two ROIs; (c) feature extraction from each connection and (d) extracted weighted networks. ](pipeline_illustration_modified1.png)
+
+With the parcellation of an individual brain, we extract a set of weighted matrices to represent the brain's structural connectome. For each pair of ROIs, we first extract fibers connecting them. Figure 1 column (d) shows one example of the fiber curves. We then extract different summaries/features to characterize each fiber bundle (in a connection). In this project, you will only get fiber count matrices. 
+
+**Traits**. You can find many covariates in the folder of `Data/traits` (i.e., `table1_hcp.csv` and `table2_hcp.csv`) and data dictionary in `HCP_S1200_DataDictionary_Sept_18_2017.xls`. A subfolder named `175traits` contains 175 traits that I previously identified. These traits measure a person's cognition, substance use, psychiatric and life function, sensory, emotion, health and family history. 
+
+**Structural and Functional Connectomes**. In the folder `SC` and `FC` you can find Structural Connectomes and Functional Connectomes for about 1065 subjects, respectively.  
+
+**Structural Connectome Dimention Reduction** Let's assume we extract M different features from each connection. By doing this, we have a $68 \times 68 \times M$ matrix (for the Desikan Parcellation. You might see $87\times 87$ or other dimensions if a different parcellation is used to construct the SC or FC) representing each subject's structural connectome. If you calculate the number of variables inside such tensor, it should be $(68*67/2)*M = 2278*M$ (because of the symmetry of the matrix). If $M = 10$, you have about 22k unknown variables. Usually, with such large unknown variables and such small sample size, we are facing challenges in modeling. For example, a simple linear regression will not work (why?). Let's say,  we are interested in using these connectivity features to predict a score measured from a subject, which model can we use?
+
+A few ways to get around the high dimensional issue include: (1) if you want to use a regression method, you can perform a penalize regression, for example, rigid regression or LASSO; (2) reduce the dimension of the connectivity matrix. There are many ways for (2) - for example, you can treat the matrix as a set of network and extract summary statistics from these networks. Depending on how many of summaries you extract, you will have different low dimensional representation of the connectome. Another way is to vectorize the data and perform PCA analysis.  However, vectorizing the tensor would discard valuable information about the network structure. Here we take a different approach - we treat this set of networks for all subjects as a high-dimensional tensor and perform a tenor PCA. 
+
+The tensor PCA (TNPCA) approach approximates the brain tensor network using $K$ components, with the components ordered to have decreasing impact similarly to common practice in PCA.  Individuals are assigned a brain connectome PC score for each of the $K$ components, measuring the extent to which their brain tensor network expresses that particular tensor network (TN) component.  Each TN component is itself a tensor network, but one having a very simple rank one structure depending on scores for each brain ROI.  By using TN-PCA, we can replace the high dimensional tensor network summarizing an individual's brain connectome with a $K$-dimensional vector of brain PC scores; these scores can be used for visualizing variation among individuals in their brain connectomes and in statistical analyses studying relationships between connectomes and traits. You can find matlab code for performing TNPCA here: https://github.com/zhengwu/TensorNetwork_PCA. By setting `K=60`, I calculated the TN-PCA coefficient scores for each subject and you can find these scores in the folder `TNPCA_Result` if you want to utilize such data in your project. 
+
+**Network data embedding**. Loosely, there are two types of embedding: 1. you can embed the whole network into a vector in a low-dimensional space; and 2. you can embed each network node into a vector space. In the later case, the spatial distribution of nodes in the embedding space would represent the relationship among them, e.g., connected nodes will stay close to each other. There is a large body of literature for this thread (e.g, embedding of large scale graphs and so on). A very recent paper is by Arroyo et al. [@arroyo2019inference] that you can read and implement for this project (he has R and Python code, check his website: https://jesus-arroyo.github.io/papers/)
+
+**Load data**. 
+The matlab code "load_data.m" show you how to load data to matlab. You can  `R.matlab` package in R to load `.mat` file to R. 
+
+Final project questions (suggested)
+===
+For the final project, your tasks can be simply summarized as follows:
+
+- merge all data into one data frame/tibble (if you use the TNPCA scores, also include this in your data frame)
+
+- As an alternative, you can build different relationale databases for all modalities and practice SQL and `dbplyr` with such data.  
+
+- Conduct EDA to the data, including data visualziation, distribution spection and so on. Summarize some interesting results into your report. 
+
+- Plot some interesting PC scores v.s. traits (See figure 4 panel c). 
+
+- study the relationship between traits and structural connectome and/or functional connectome
+
+- try to study some neuroscience and explain your results. 
+
+- write your report and presentation.
+
+
+Merge data or data management
+===
+For each subject, you have network data, PCA scores, and covariates. Start to think about how to store them in an efficient way to faciliate your modeling and visualization.
+
+Plots or data visulization 
+===
+Before writing down any models, EDA is encouraged. Visualize your data and try to see whether there are interesting patterns/trends inside. Here we are interested in exploring the relationship between traits and brain connectomes. I will suggest to 1) reduce the dimension of the network data into a vector (e.g., with dimenion of 3 so you can plot them), 2) visulize the embedded networks and explore their relationship with some traits (e.g., cognition or motion). 
+
+What you can do is to sort all subjects according to some trait, take out the first N and last N subjects (e.g., N=50,100,200), plot their first 3 PC scores, and color each subject with the trait score. Choose some interesting ones to display and explain their meaning. 
+
+Study the relationship
+===
+To study the relationship between traits and connectomes, you can do: 1. hypothesis tests and 2. prediction and other interesting statistical analyses that you know well (or you want to study).  
+
+Note that some of the traits are discrete and some of them are continuous. You might want to use different models for different types of covariates. 
+
+For hypothesis tests, what you can do is to choose a trait, sort the subject, get N subjects with high trait values and get M subjects with low trait values, assign them to high and low classes. Next, you test the mean difference between their connectomes and/or PC scores.
+
+If you only test the first PC scores, you can use t-test. However, if you want to test mean difference for multivariate data (with dim>1), you need to do more research (e.g., which method will work in this case). Try to find some R/Matlab package can do this type of hypothese testing. 
+
+For prediction analysis, I suggest you try different models, e.g., linear regression, rigid regression, SVM, random forest and so on. Choose some traits that are interesting to you, and try use different models and evaluate whether brain connectomes can predict traits. That is whether you brain connectivity can predict your cognition, emotion and so on. 
+
+
+**References**
