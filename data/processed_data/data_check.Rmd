@@ -1,0 +1,279 @@
+---
+title: 'STOR 674 Final Project: Brain Connectomes and Traits'
+author: "Your Name"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: cosmo
+---
+
+```{r sex-data-integration, message=FALSE, warning=FALSE}
+## ================================================================
+## INTEGRATED HCP DATASET FOR SEXUAL DIMORPHISM ANALYSIS
+##   - Start from raw files: TN-PCA CSVs, HCP_175Traits.mat,
+##     Details_175_Traits.xlsx, table1_hcp.csv
+##   - Output:
+##       sex_data_sc    : traits + SC TN-PCA + age group + sex
+##       sex_data_sc_fc : traits + SC+FC TN-PCA + age group + sex
+## ================================================================
+
+library(tidyverse)
+library(readr)
+library(readxl)
+library(janitor)
+library(R.matlab)
+
+cat("Working directory:\n  ", getwd(), "\n\n", sep = "")
+cat("Files here:\n")
+print(list.files())
+cat("\n")
+
+## ------------------------------------------------
+## 1. TN-PCA scores from CSVs (structural + functional)
+## ------------------------------------------------
+
+tn_sc <- read_csv("TN_Structural_TNPCAScores_1065.csv",
+                  show_col_types = FALSE) %>%
+  mutate(subject = as.character(subject))
+
+tn_fc <- read_csv("TN_Functional_TNPCAScores_1058.csv",
+                  show_col_types = FALSE) %>%
+  mutate(subject = as.character(subject))
+
+cat("TN-PCA (structural):", nrow(tn_sc), "subjects,",
+    sum(str_starts(names(tn_sc), "tn_sc_pc")), "components\n")
+cat("TN-PCA (functional):", nrow(tn_fc), "subjects,",
+    sum(str_starts(names(tn_fc), "tn_fc_pc")), "components\n\n")
+
+## ------------------------------------------------
+## 2. 175-trait matrix from HCP_175Traits.mat
+## ------------------------------------------------
+## File has:
+##   - 'traits.175'   : 175 x N matrix (traits x subjects)
+##   - 'hcp.subj.id'  : length N subject IDs
+
+traits_mat <- readMat("HCP_175Traits.mat")
+names(traits_mat)
+
+traits_raw  <- traits_mat$`traits.175`         # 175 x N
+subj_traits <- as.vector(traits_mat$`hcp.subj.id`)
+
+cat("dim(traits.175) =", paste(dim(traits_raw), collapse = " x "), "\n")
+cat("length(hcp.subj.id) =", length(subj_traits), "\n\n")
+
+n_traits <- nrow(traits_raw)
+n_subj   <- ncol(traits_raw)
+
+# Subject-level tibble: N x 175 + subject
+traits_df <- as_tibble(t(traits_raw))
+colnames(traits_df) <- paste0("trait", seq_len(n_traits))
+traits_df <- traits_df %>%
+  mutate(subject = as.character(subj_traits))
+
+cat("Trait tibble: ", nrow(traits_df), " subjects x ",
+    ncol(traits_df) - 1, " trait columns\n\n", sep = "")
+
+## ------------------------------------------------
+## 3. Trait metadata – map trait1..trait175 -> HCP names
+## ------------------------------------------------
+
+traits_details <- read_excel("Details_175_Traits.xlsx") %>%
+  clean_names()
+# Expect columns: indx (1..175), column_header, category, measure, ...
+
+# Build mapping: new_name = column_header, old_name = trait{indx}
+trait_map <- traits_details %>%
+  mutate(trait_col = paste0("trait", indx)) %>%
+  select(trait_col, column_header)
+
+rename_vec <- setNames(trait_map$trait_col, trait_map$column_header)
+# rename(df, new = old) -> names(rename_vec) = new, values = old
+
+traits_df_named <- traits_df %>%
+  rename(!!!rename_vec)
+
+cat("Renamed trait columns to HCP variable names.\n")
+cat("First 10 trait columns:\n")
+print(head(names(traits_df_named), 10))
+cat("\n")
+
+## ------------------------------------------------
+## 4. Demographics: Age group + Gender from table1_hcp.csv
+## ------------------------------------------------
+## We treat:
+##   - Age as ordered factor (e.g., '22-25', '26-30', ...)
+##   - Gender as factor (M/F) and create 'sex' variable
+
+demo_df <- read_csv("table1_hcp.csv", show_col_types = FALSE) %>%
+  select(Subject, Age, Gender) %>%
+  mutate(
+    subject = as.character(Subject),
+    Age     = factor(Age, ordered = TRUE),  # age ranges
+    Gender  = factor(Gender)
+  ) %>%
+  select(subject, Age, Gender)
+
+cat("Demographics tibble:", nrow(demo_df), "rows\n")
+cat("Age levels:", paste(levels(demo_df$Age), collapse = ", "), "\n")
+cat("Gender levels:", paste(levels(demo_df$Gender), collapse = ", "), "\n\n")
+
+## ------------------------------------------------
+## 5. Integrate: traits + SC TN-PCA (+ FC TN-PCA) + age + gender
+## ------------------------------------------------
+
+# Structural-only dataset
+sex_data_sc <- traits_df_named %>%
+  inner_join(tn_sc, by = "subject") %>%      # add SC TN-PCA
+  inner_join(demo_df, by = "subject") %>%    # add age + gender
+  filter(Gender %in% c("M", "F")) %>%        # keep only clear sex labels
+  mutate(
+    sex = factor(Gender, levels = c("F", "M"),
+                 labels = c("Female", "Male"))
+  )
+
+cat("sex_data_sc (traits + SC + demo):\n")
+cat("  n subjects:", nrow(sex_data_sc), "\n")
+cat("  n columns :", ncol(sex_data_sc), "\n")
+cat("Sex counts:\n"); print(table(sex_data_sc$sex)); cat("\n")
+
+# Structural + functional dataset
+sex_data_sc_fc <- traits_df_named %>%
+  inner_join(tn_sc, by = "subject") %>%      # SC TN-PCA
+  inner_join(tn_fc, by = "subject") %>%      # FC TN-PCA
+  inner_join(demo_df, by = "subject") %>%    # age + gender
+  filter(Gender %in% c("M", "F")) %>%
+  mutate(
+    sex = factor(Gender, levels = c("F", "M"),
+                 labels = c("Female", "Male"))
+  )
+
+cat("sex_data_sc_fc (traits + SC+FC + demo):\n")
+cat("  n subjects:", nrow(sex_data_sc_fc), "\n")
+cat("  n columns :", ncol(sex_data_sc_fc), "\n")
+cat("Sex counts:\n"); print(table(sex_data_sc_fc$sex)); cat("\n")
+
+## ------------------------------------------------
+## 6. Standardize TN-PCA components (for modeling)
+## ------------------------------------------------
+## We create z-scored versions of each TN-PCA component:
+##   tn_sc_pc1_z, ..., tn_sc_pc60_z, tn_fc_pc1_z, ...
+
+pc_sc_cols <- grep("^tn_sc_pc\\d+$", names(sex_data_sc_fc), value = TRUE)
+pc_fc_cols <- grep("^tn_fc_pc\\d+$", names(sex_data_sc_fc), value = TRUE)
+
+sex_data_sc_fc <- sex_data_sc_fc %>%
+  mutate(
+    across(all_of(pc_sc_cols),
+           ~ as.numeric(scale(.)),
+           .names = "{.col}_z"),
+    across(all_of(pc_fc_cols),
+           ~ as.numeric(scale(.)),
+           .names = "{.col}_z")
+  )
+
+sex_data_sc <- sex_data_sc %>%
+  mutate(
+    across(all_of(pc_sc_cols),
+           ~ as.numeric(scale(.)),
+           .names = "{.col}_z")
+  )
+
+cat("Added z-scored TN-PCA components (*_z) to sex_data_sc and sex_data_sc_fc.\n\n")
+
+## Quick glimpse ----------------------------------------------------
+cat("Glimpse of sex_data_sc_fc (for EBM / other models):\n")
+print(glimpse(sex_data_sc_fc))
+cat("\n")
+
+## At this point you have:
+##   - sex_data_sc    : traits + SC PCs + age group + sex
+##   - sex_data_sc_fc : traits + SC+FC PCs (raw + z), age group, sex
+## These are the main inputs for sexual dimorphism models (EBM, etc.).
+
+
+
+```
+
+```{r save-and-summary-sex-data, message=FALSE}
+library(readr)
+library(dplyr)
+
+## ===================== SAVE TO CSV =====================
+
+# SC-only dataset
+write_csv(sex_data_sc, "sex_data_sc.csv")
+cat("Saved SC-only dataset to: sex_data_sc.csv\n")
+
+# SC + FC dataset
+write_csv(sex_data_sc_fc, "sex_data_sc_fc.csv")
+cat("Saved SC+FC dataset to: sex_data_sc_fc.csv\n\n")
+
+## ===================== SUMMARIES =======================
+
+summarize_sex_dataset <- function(df, name) {
+  cat("====================================================\n")
+  cat("Summary for ", name, "\n", sep = "")
+  cat("----------------------------------------------------\n")
+  
+  ## Dimensions
+  cat("Rows (subjects): ", nrow(df), "\n", sep = "")
+  cat("Columns        : ", ncol(df), "\n\n", sep = "")
+  
+  ## Sex balance
+  if ("Gender" %in% names(df)) {
+    cat("Sex counts (Gender):\n")
+    print(table(df$Gender, useNA = "ifany"))
+    cat("\nSex proportions:\n")
+    print(prop.table(table(df$Gender)))
+    cat("\n")
+  } else if ("sex" %in% names(df)) {
+    cat("Sex counts (sex):\n")
+    print(table(df$sex, useNA = "ifany"))
+    cat("\nSex proportions:\n")
+    print(prop.table(table(df$sex)))
+    cat("\n")
+  }
+  
+  ## Age summary
+  if ("Age" %in% names(df)) {
+    cat("Age summary:\n")
+    if (is.numeric(df$Age)) {
+      print(summary(df$Age))
+    } else {
+      print(table(df$Age, useNA = "ifany"))
+    }
+    cat("\n")
+  }
+  
+  ## TN-PCA features
+  sc_raw  <- grep("^tn_sc_pc\\d+$",   names(df), value = TRUE)
+  sc_z    <- grep("^tn_sc_pc\\d+_z$", names(df), value = TRUE)
+  fc_raw  <- grep("^tn_fc_pc\\d+$",   names(df), value = TRUE)
+  fc_z    <- grep("^tn_fc_pc\\d+_z$", names(df), value = TRUE)
+  
+  cat("Number of structural TN-PCA components:\n")
+  cat("  raw : ", length(sc_raw), "\n", sep = "")
+  cat("  z   : ", length(sc_z),   "\n\n", sep = "")
+  
+  cat("Number of functional TN-PCA components:\n")
+  cat("  raw : ", length(fc_raw), "\n", sep = "")
+  cat("  z   : ", length(fc_z),   "\n\n", sep = "")
+  
+  ## A few example columns to inspect structure
+  cat("First 10 column names:\n")
+  print(names(df)[1:min(10, ncol(df))])
+  cat("\n")
+}
+
+## Run summaries
+summarize_sex_dataset(sex_data_sc,    "sex_data_sc (SC only)")
+summarize_sex_dataset(sex_data_sc_fc, "sex_data_sc_fc (SC + FC)")
+
+## =================== END CHUNK =========================
+
+```
