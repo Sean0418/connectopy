@@ -1,0 +1,300 @@
+---
+title: "dimorphism"
+author: "Sean Shen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, autodep=TRUE, cache.comments=TRUE)
+```
+
+
+
+
+```{r load_data, echo=TRUE, message=FALSE}
+library(R.matlab)
+library(dplyr)
+library(ggplot2)
+
+# --- 1. Load Structural Data (TNPCA Coefficients) ---
+struct_path <- "Data/TNPCA_Result/TNPCA_Coeff_HCP_Structural_Connectome.mat"
+struct_data <- readMat(struct_path)
+
+func_path <- "Data/TNPCA_Result/TNPCA_Coeff_HCP_Functional_Connectome.mat" 
+func_data <- readMat(func_path)
+
+
+# We use 'matrix()' to flatten it correctly, preserving the subject order
+struct_coeffs <- matrix(struct_data$PCA.Coeff, nrow = 1065, ncol = 60)
+struct_ids    <- as.vector(struct_data$sub.id)
+
+# Name the columns PC1...PC60 immediately
+colnames(struct_coeffs) <- paste0("PC", 1:60)
+
+# Create a clean dataframe for the brain features
+brain_df <- data.frame(Subject = struct_ids, struct_coeffs)
+
+func_coeffs <- matrix(func_data$PCA.Coeff, nrow = 1058, ncol = 60)
+func_ids <- as.vector(func_data$network.subject.ids)
+colnames(func_coeffs) <- paste0("Func_PC", 1:60) 
+func_df <- data.frame(Subject = func_ids, func_coeffs)
+
+colnames(brain_df) <- c("Subject", colnames(struct_coeffs))
+
+# --- 2. Load Trait Data ---
+traits_path <- "Data/traits/table1_hcp.csv"
+traits_df   <- read.csv(traits_path)
+traits2_path <- "Data/traits/table2_hcp.csv" 
+traits2_df   <- read.csv(traits2_path)
+
+# --- 3. Merge ---
+all_traits <- inner_join(traits_df, traits2_df, by = "Subject")
+# Inner join ensures we match traits to the correct brain scan
+half_data <- inner_join(all_traits, brain_df, by = "Subject")
+full_data <- inner_join(half_data, func_df, by = "Subject")
+
+# Verification: Variance should be > 0 (meaning points are different)
+print(paste("Data Loaded. Rows:", nrow(full_data)))
+print(paste("PC1 Variance:", var(full_data$PC1)))
+```
+
+
+
+```{r viz_pca, echo=TRUE, message=FALSE, warning=FALSE}
+# --- 1. Plot PC1 vs PC2 colored by Gender ---
+p1 <- ggplot(full_data, aes(x = PC1, y = PC2, color = Gender)) +
+  geom_point(alpha = 0.7, size = 2) +
+  stat_ellipse(geom = "polygon", alpha = 0.2, level = 0.95)+
+  theme_minimal() +
+  labs(title = "Brain Structure: Male vs Female",
+       subtitle = "Colored by Gender")
+
+# --- 2. Plot PC1 vs PC2 colored by Age ---
+p2 <- ggplot(full_data, aes(x = PC1, y = PC2, color = Age)) +
+  geom_point(alpha = 0.7, size = 2) +
+  stat_ellipse(geom = "polygon", alpha = 0.2, level = 0.95)+
+  theme_minimal() +
+  labs(title = "Brain Structure: Age Groups",
+       subtitle = "Colored by Age Range")
+
+# Print plots
+print(p1)
+print(p2)
+```
+
+
+
+```{r}
+# Ensure Gender is a factor for plotting
+full_data$Gender <- as.factor(full_data$Gender)
+
+ggplot(full_data, aes(x = PC1, y = PC2, color = Gender, fill = Gender)) +
+  geom_point(alpha = 0.4, size = 1.5) + 
+  # Add 95% confidence ellipses
+  stat_ellipse(geom = "polygon", alpha = 0.2, level = 0.95) +
+  scale_color_manual(values = c("M" = "#1f77b4", "F" = "#d62728")) +
+  scale_fill_manual(values = c("M" = "#1f77b4", "F" = "#d62728")) +
+  theme_bw() +
+  labs(
+    title = "Structural Connectome Separation by Gender",
+    subtitle = "PC1 vs PC2 with 95% Confidence Regions",
+    x = "Principal Component 1",
+    y = "Principal Component 2"
+  )
+```
+
+
+
+```{r}
+ggplot(full_data, aes(x = Gender, y = Strength_Unadj, fill = Gender)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.1) +
+  labs(title = "Sanity Check: Sexual Dimorphism in Grip Strength",
+       y = "Grip Strength (lbs)") +
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+# 2. Brain Structure PCA Plot
+ggplot(full_data, aes(x = PC1, y = PC2, color = Gender)) +
+  geom_point(alpha = 0.5) +
+  stat_ellipse(level = 0.95, size = 1) + # Adds 95% confidence circles
+  scale_color_manual(values = c("M" = "#1f77b4", "F" = "#d62728")) +
+  labs(title = "Brain Structural Connectome: Male vs Female",
+       subtitle = "Do the ellipses separate?",
+       x = "PC1 (Main Variation)", y = "PC2 (Secondary Variation)") +
+  theme_minimal()
+```
+
+
+
+```{r}
+# Create a storage for results
+results <- data.frame(PC = character(), P_Value = numeric(), Cohen_D = numeric(), stringsAsFactors = FALSE)
+
+# Loop through first 10 PCs (or all 60 if you want)
+for(i in 1:60) {
+  pc_name <- paste0("PC", i)
+  
+  # Run t-test
+  test <- t.test(full_data[[pc_name]] ~ full_data$Gender)
+  
+  # Calculate Cohen's d (Effect Size) - simplified
+  mean_diff <- diff(test$estimate)
+  pooled_sd <- sd(full_data[[pc_name]])
+  cohen_d <- mean_diff / pooled_sd
+  
+  # Store
+  results[i, ] <- c(pc_name, test$p.value, cohen_d)
+}
+
+# Adjust p-values (False Discovery Rate)
+results$P_Adj <- p.adjust(as.numeric(results$P_Value), method = "fdr")
+results$Significant <- results$P_Adj < 0.05
+
+print(results)
+```
+
+
+
+
+
+
+```{r}
+# Install packages if you don't have them
+# install.packages("randomForest")
+# install.packages("caret") 
+
+library(randomForest)
+library(caret)
+library(ggplot2)
+
+# Data Preparation
+# We need a clean dataframe with just the Predictors (X) and Target (Y)
+# Target: Gender (Factor)
+# Predictors: PC1-PC60 (Structure) AND Func_PC1-Func_PC60 (Functional)
+# Control: Age, Brain Volume (FS_BrainSeg_Vol)
+
+rf_data <- full_data %>%
+  dplyr::select(Gender, starts_with("PC"), starts_with("Func_PC"), FS_BrainSeg_Vol) %>%
+  mutate(Gender = as.factor(Gender)) %>%
+  na.omit()
+
+# Split Data (
+set.seed(123) # For reproducibility
+trainIndex <- createDataPartition(rf_data$Gender, p = .7, list = FALSE)
+train_set <- rf_data[trainIndex, ]
+test_set  <- rf_data[-trainIndex, ]
+
+print(paste("Training on", nrow(train_set), "subjects."))
+
+# Train the Random Forest 
+rf_model <- randomForest(Gender ~ ., data = train_set, ntree = 500, importance = TRUE)
+
+# Evaluate Performance
+predictions <- predict(rf_model, test_set)
+conf_matrix <- confusionMatrix(predictions, test_set$Gender)
+print(conf_matrix)
+
+# Feature Importance
+# Extract importance scores
+importance_df <- as.data.frame(importance(rf_model))
+importance_df$Feature <- rownames(importance_df)
+
+# Get the Top 10 most important features
+top_features <- importance_df %>%
+  arrange(desc(MeanDecreaseGini)) %>%
+  head(10)
+
+# Plot the Biomarkers
+ggplot(top_features, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini, fill = Feature)) +
+  geom_bar(stat = "identity") +
+  coord_flip() + # Horizontal bars are easier to read
+  labs(title = "Top 10 Biomarkers for Sexual Dimorphism",
+       subtitle = "Which brain features best distinguish Male from Female?",
+       x = "Feature Name",
+       y = "Importance (Mean Decrease Gini)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+
+
+
+```{r}
+# Load necessary libraries
+library(xgboost)
+library(caret)
+library(dplyr)
+
+select <- dplyr::select
+# Ensure no missing values exist
+clean_data <- full_data %>%
+  select(Gender, starts_with("PC"), starts_with("Func_PC"), FS_BrainSeg_Vol) %>%
+  na.omit()
+
+# Prepare the Target variable
+# Convert Gender to 0 and 1
+data_y <- as.numeric(as.factor(clean_data$Gender)) - 1
+
+# Prepare the Predictor Matrix
+data_x <- clean_data %>%
+  select(-Gender) %>%
+  as.matrix()
+
+# Split Data into Training and Testing
+# We use 70 percent for training and 30 percent for testing
+set.seed(123)
+train_index <- createDataPartition(data_y, p = 0.7, list = FALSE)
+
+# Create the DMatrix objects for XGBoost
+dtrain <- xgb.DMatrix(data = data_x[train_index, ], label = data_y[train_index])
+dtest  <- xgb.DMatrix(data = data_x[-train_index, ], label = data_y[-train_index])
+
+# Set parameters
+params <- list(
+  objective = "binary:logistic",
+  eta = 0.05,
+  max_depth = 4,
+  eval_metric = "error"
+)
+
+# Train the Model
+model_xgb <- xgboost(
+  params = params,
+  data = dtrain,
+  nrounds = 500,
+  verbose = 0
+)
+
+# Make Predictions on the Test Set
+# XGBoost outputs probabilities (0 to 1)
+pred_probs <- predict(model_xgb, dtest)
+
+# Convert Probabilities to Class Labels
+# If probability is greater than 0.5 we classify as 1 (Male)
+pred_labels <- ifelse(pred_probs > 0.5, 1, 0)
+
+# Convert vectors to factors for the Confusion Matrix
+# We map 0 and 1 back to the original Gender levels (F and M)
+actual_labels <- factor(data_y[-train_index], levels = c(0, 1), labels = c("F", "M"))
+predicted_labels <- factor(pred_labels, levels = c(0, 1), labels = c("F", "M"))
+
+# Generate the Confusion Matrix and Statistics
+conf_matrix <- confusionMatrix(predicted_labels, actual_labels)
+
+# Print the Results
+print(conf_matrix)
+
+# Print specific accuracy to ensure it is clear
+print(paste("Accuracy:", round(conf_matrix$overall["Accuracy"], 4)))
+```
+
+
+
