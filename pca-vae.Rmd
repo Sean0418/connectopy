@@ -437,7 +437,7 @@ To extract non-linear biomarkers, we utilized the encoder network of our trained
 ```{r}
 vae_df <- vae_struct_df %>%
   inner_join(vae_func_df, by = "Subject")
-write.csv(vae_df, "Data/vae_df")
+write.csv(vae_df, "Data/vae_df.csv")
 ```
 
 
