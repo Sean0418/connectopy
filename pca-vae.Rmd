@@ -166,19 +166,32 @@ library(torch)
 library(dplyr)
 
 # Prepare Data
-x_mat <- scale(sc_flat_clean)
-x_tensor <- torch_tensor(x_mat, dtype = torch_float())
+# x_mat <- scale(sc_flat_clean)
+# x_tensor <- torch_tensor(x_mat, dtype = torch_float())
+
+
+x_mat_log <- log1p(sc_flat_clean) # log(x + 1)
+
+# THEN normalize to 0-1 range (Min-Max) for stability
+max_val <- max(x_mat_log)
+x_mat_final <- x_mat_log / max_val
+
+# Convert to Tensor
+x_tensor <- torch_tensor(x_mat_final, dtype = torch_float())
 
 # Split Data (80% Train, 20% Test)
 set.seed(123)
 torch_manual_seed(123)
-sample_idx <- sample(1:nrow(x_tensor), size = 0.8 * nrow(x_tensor))
-train_tensor <- x_tensor[sample_idx, ]
-test_tensor  <- x_tensor[-sample_idx, ] # The held-out set for testing
+total_rows <- nrow(x_tensor)
+#sample_idx <- sample(1:nrow(x_tensor), size = 0.8 * nrow(x_tensor))
+train_indices <- sample(1:total_rows, size = 0.8 * total_rows)
+test_indices  <- setdiff(1:total_rows, train_indices)
+train_tensor <- x_tensor[train_indices, ]
+test_tensor  <- x_tensor[test_indices, ] # The held-out set for testing
 
 input_dim <- ncol(x_mat)
 latent_dim <- 60  
-hidden_dim <- 512
+hidden_dim <- 256
 
 # Define VAE Architecture
 vae_module <- nn_module(
@@ -186,6 +199,8 @@ vae_module <- nn_module(
   
   initialize = function(input_dim, hidden_dim, latent_dim) {
     self$fc1 <- nn_linear(input_dim, hidden_dim)
+    self$drop <- nn_dropout(p = 0.2)
+    
     self$fc_mu <- nn_linear(hidden_dim, latent_dim)
     self$fc_logvar <- nn_linear(hidden_dim, latent_dim)
     self$fc_d1 <- nn_linear(latent_dim, hidden_dim)
@@ -194,6 +209,7 @@ vae_module <- nn_module(
   
   encode = function(x) {
     h <- torch_relu(self$fc1(x))
+    h <- self$drop(h)
     mu <- self$fc_mu(h)
     logvar <- self$fc_logvar(h)
     return(list(mu, logvar))
@@ -207,6 +223,7 @@ vae_module <- nn_module(
   
   decode = function(z) {
     h <- torch_relu(self$fc_d1(z))
+    h <- self$drop(h)
     return(self$fc_d2(h))
   },
   
@@ -235,15 +252,20 @@ vae_loss <- function(recon_x, x, mu, logvar) {
 num_epochs <- 200
 batch_size <- 64
 num_train <- nrow(train_tensor)
+num_test <- nrow(test_tensor)
 
-print("Training VAE with Validation...")
+train_loss_norm_history <- numeric(num_epochs)
+test_loss_norm_history  <- numeric(num_epochs)
+
+print("Training VAE with Normalized Loss Tracking...")
 
 for (epoch in 1:num_epochs) {
   
-  # --- Training Phase ---
-  model$train() # Set to training mode (enables gradients/dropout)
+  # Training Phase
+  model$train()
   indices <- sample(1:num_train)
-  train_loss_total <- 0
+  train_loss_sum <- 0
+  train_var_sum  <- 0
   
   for (i in seq(1, num_train, by = batch_size)) {
     end_idx <- min(i + batch_size - 1, num_train)
@@ -252,35 +274,70 @@ for (epoch in 1:num_epochs) {
     
     optimizer$zero_grad()
     
-    # Forward & Backward
     output <- model(batch_x)
+    # Calculate raw MSE for the batch (reconstruction only)
+    batch_mse <- nnf_mse_loss(output[[1]], batch_x, reduction = "sum")
+    
+    # Calculate Loss (MSE + KLD) for backprop
     loss <- vae_loss(output[[1]], batch_x, output[[2]], output[[3]])
     loss$backward()
-    train_loss_total <- train_loss_total + loss$item()
+    
+    train_loss_sum <- train_loss_sum + batch_mse$item() # Track raw MSE
+    # Calculate batch variance sum (sum of squares since mean approx 0.5)
+    # Or just use the global variance for stability
     optimizer$step()
   }
   
-  # --- Validation Phase (Test Loss) ---
-  # We run this every 10 epochs to save time
-  if (epoch %% 10 == 0) {
-    model$eval() # Set to evaluation mode (disables gradients)
-    test_loss_total <- 0
+  # Validation Phase
+  if (epoch %% 1 == 0) { # Check every epoch for smooth plot
+    model$eval()
+    test_loss_sum <- 0
     
-    # We use 'with_no_grad' to speed up calculation and save memory
     with_no_grad({
       output_test <- model(test_tensor)
-      loss_test <- vae_loss(output_test[[1]], test_tensor, output_test[[2]], output_test[[3]])
-      test_loss_total <- loss_test$item()
+      # Track pure reconstruction error (MSE) for metric
+      batch_test_mse <- nnf_mse_loss(output_test[[1]], test_tensor, reduction = "sum")
+      test_loss_sum <- batch_test_mse$item()
     })
     
-    # Calculate Averages
-    avg_train_loss <- train_loss_total / num_train
-    avg_test_loss  <- test_loss_total / nrow(test_tensor)
+    # CALCULATE NORMALIZED LOSS (Unexplained Variance)
+    # Loss / (N * Variance)
+    # Since data is MinMax scaled, variance is roughly 0.08 (approx)
+    # Better: Divide MSE by Total Sum of Squares (TSS) of the data subset
     
-    cat(sprintf("Epoch %d | Train Loss: %.2f | Test Loss: %.2f\n", 
-                epoch, avg_train_loss, avg_test_loss))
+    # Calculate Total Sum of Squares for Train and Test sets
+    train_tss <- sum((as.matrix(train_tensor) - mean(as.matrix(train_tensor)))^2)
+    test_tss  <- sum((as.matrix(test_tensor)  - mean(as.matrix(test_tensor)))^2)
+    
+    train_norm_loss <- train_loss_sum / train_tss
+    test_norm_loss  <- test_loss_sum  / test_tss
+    
+    train_loss_norm_history[epoch] <- train_norm_loss
+    test_loss_norm_history[epoch]  <- test_norm_loss
+    
+    if (epoch %% 10 == 0) {
+      cat(sprintf("Epoch %d | Norm Train Loss: %.4f | Norm Test Loss: %.4f\n", 
+                  epoch, train_norm_loss, test_norm_loss))
+    }
   }
 }
+
+# Plot Normalized Loss
+history_norm_df <- data.frame(
+  Epoch = 1:num_epochs,
+  Train = train_loss_norm_history,
+  Test  = test_loss_norm_history
+) %>%
+  pivot_longer(cols = c("Train", "Test"), names_to = "Type", values_to = "NormalizedLoss")
+
+ggplot(history_norm_df, aes(x = Epoch, y = NormalizedLoss, color = Type)) +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(0, 1)) + # Force 0-1 scale
+  scale_color_manual(values = c("Train" = "#1f77b4", "Test" = "#d62728")) +
+  labs(title = "VAE Normalized Learning Curve",
+       subtitle = "Proportion of Unexplained Variance",
+       y = "Normalized Loss (1 - R^2)") +
+  theme_minimal()
 
 # Extract Latent Variables (Using ALL data for the final features)
 # We switch back to eval mode to get deterministic features
@@ -291,6 +348,28 @@ vae_scores <- as.matrix(final_out[[2]]) # Extract Mu
 # Create Dataframe
 vae_struct_df <- data.frame(Subject = sc_ids, vae_scores)
 colnames(vae_struct_df)[2:(latent_dim+1)] <- paste0("VAE_Struct_LD", 1:latent_dim)
+
+```
+
+
+
+
+
+```{r}
+# Visualization of the "Magic" Fix
+par(mfrow=c(1,2)) # Side-by-side plots
+
+# 1. The Nightmare (Raw Data)
+# Shows almost everything at 0, with invisible outliers at 5000
+hist(sc_flat_clean[sample(length(sc_flat_clean), 10000)], 
+     main = "Raw Counts (The Problem)", 
+     xlab = "Fiber Count", col = "red", breaks = 50)
+
+# 2. The Solution (Log Data)
+# Shows a beautiful, learnable distribution
+hist(log1p(sc_flat_clean[sample(length(sc_flat_clean), 10000)]), 
+     main = "Log Transformed (The Fix)", 
+     xlab = "Log(Fiber Count)", col = "blue", breaks = 50)
 ```
 
 
@@ -301,40 +380,54 @@ colnames(vae_struct_df)[2:(latent_dim+1)] <- paste0("VAE_Struct_LD", 1:latent_di
 ```{r}
 library(torch)
 library(dplyr)
+library(ggplot2)
+library(tidyr)
 
-# Prepare Functional Data
-# We assume fc_flat_final exists from your previous Functional PCA step
-# Z-score normalize the functional connectivity data
-x_mat_func <- scale(fc_flat_final)
-x_tensor_func <- torch_tensor(x_mat_func, dtype = torch_float())
-
-# Split Data (80% Train, 20% Test)
+# GIGACHAD REPRODUCIBILITY BLOCK
 set.seed(123)
 torch_manual_seed(123)
-sample_idx <- sample(1:nrow(x_tensor_func), size = 0.8 * nrow(x_tensor_func))
-train_tensor_func <- x_tensor_func[sample_idx, ]
-test_tensor_func  <- x_tensor_func[-sample_idx, ]
+
+# 1. Prepare Data (Log Transform + MinMax)
+# Note: fc_flat_final is your raw functional connectivity matrix
+# We apply log1p to handle any high-value outliers in functional strength
+x_mat_func_log <- log1p(fc_flat_final)
+max_val_func   <- max(x_mat_func_log)
+x_mat_func_final <- x_mat_func_log / max_val_func
+
+# Convert to Tensor
+x_tensor_func <- torch_tensor(x_mat_func_final, dtype = torch_float())
+
+# 2. Split Data (Using robust setdiff logic)
+total_rows_func <- nrow(x_tensor_func)
+train_indices_func <- sample(1:total_rows_func, size = 0.8 * total_rows_func)
+test_indices_func  <- setdiff(1:total_rows_func, train_indices_func)
+
+train_tensor_func <- x_tensor_func[train_indices_func, ]
+test_tensor_func  <- x_tensor_func[test_indices_func, ]
 
 # Dimensions
-input_dim <- ncol(x_mat_func)
+input_dim  <- ncol(x_mat_func_final)
 latent_dim <- 60
-hidden_dim <- 512
+hidden_dim <- 256
 
-# Define VAE Architecture
-# This is identical to the Structural one to keep the comparison fair
+# 3. Define VAE Architecture (With Dropout)
 vae_module_func <- nn_module(
   "VAE_Func",
   
   initialize = function(input_dim, hidden_dim, latent_dim) {
     self$fc1 <- nn_linear(input_dim, hidden_dim)
+    self$drop <- nn_dropout(p = 0.2) # Regularization
+    
     self$fc_mu <- nn_linear(hidden_dim, latent_dim)
     self$fc_logvar <- nn_linear(hidden_dim, latent_dim)
+    
     self$fc_d1 <- nn_linear(latent_dim, hidden_dim)
     self$fc_d2 <- nn_linear(hidden_dim, input_dim)
   },
   
   encode = function(x) {
     h <- torch_relu(self$fc1(x))
+    h <- self$drop(h)
     mu <- self$fc_mu(h)
     logvar <- self$fc_logvar(h)
     return(list(mu, logvar))
@@ -348,6 +441,7 @@ vae_module_func <- nn_module(
   
   decode = function(z) {
     h <- torch_relu(self$fc_d1(z))
+    h <- self$drop(h)
     return(self$fc_d2(h))
   },
   
@@ -361,7 +455,7 @@ vae_module_func <- nn_module(
   }
 )
 
-# Initialize Model and Optimizer
+# Initialize
 model_func <- vae_module_func(input_dim, hidden_dim, latent_dim)
 optimizer_func <- optim_adam(model_func$parameters, lr = 0.001, weight_decay = 0.0005)
 
@@ -372,19 +466,22 @@ vae_loss_func <- function(recon_x, x, mu, logvar) {
   return(MSE + KLD)
 }
 
-# Training Loop
+# 4. Training Loop with Normalized Loss Tracking
 num_epochs <- 200
 batch_size <- 64
 num_train <- nrow(train_tensor_func)
 
-print("Training Functional VAE...")
+train_norm_loss_hist <- numeric(num_epochs)
+test_norm_loss_hist  <- numeric(num_epochs)
+
+print("Training Functional VAE with Normalized Loss...")
 
 for (epoch in 1:num_epochs) {
   
   # Training Phase
   model_func$train()
   indices <- sample(1:num_train)
-  train_loss_total <- 0
+  train_loss_sum <- 0
   
   for (i in seq(1, num_train, by = batch_size)) {
     end_idx <- min(i + batch_size - 1, num_train)
@@ -394,38 +491,87 @@ for (epoch in 1:num_epochs) {
     optimizer_func$zero_grad()
     
     output <- model_func(batch_x)
+    # Calculate raw MSE for tracking
+    batch_mse <- nnf_mse_loss(output[[1]], batch_x, reduction = "sum")
+    
+    # Calculate Backprop Loss (MSE + KLD)
     loss <- vae_loss_func(output[[1]], batch_x, output[[2]], output[[3]])
     loss$backward()
-    train_loss_total <- train_loss_total + loss$item()
+    
+    train_loss_sum <- train_loss_sum + batch_mse$item()
     optimizer_func$step()
   }
   
   # Validation Phase
+  model_func$eval()
+  test_loss_sum <- 0
+  
+  with_no_grad({
+    output_test <- model_func(test_tensor_func)
+    batch_test_mse <- nnf_mse_loss(output_test[[1]], test_tensor_func, reduction = "sum")
+    test_loss_sum <- batch_test_mse$item()
+  })
+  
+  # Calculate Normalized Loss (MSE / Total Sum of Squares)
+  # Unexplained Variance Ratio
+  train_tss <- sum((as.matrix(train_tensor_func) - mean(as.matrix(train_tensor_func)))^2)
+  test_tss  <- sum((as.matrix(test_tensor_func)  - mean(as.matrix(test_tensor_func)))^2)
+  
+  train_norm_loss <- train_loss_sum / train_tss
+  test_norm_loss  <- test_loss_sum  / test_tss
+  
+  train_norm_loss_hist[epoch] <- train_norm_loss
+  test_norm_loss_hist[epoch]  <- test_norm_loss
+  
   if (epoch %% 10 == 0) {
-    model_func$eval()
-    test_loss_total <- 0
-    
-    with_no_grad({
-      output_test <- model_func(test_tensor_func)
-      loss_test <- vae_loss_func(output_test[[1]], test_tensor_func, output_test[[2]], output_test[[3]])
-      test_loss_total <- loss_test$item()
-    })
-    
-    avg_train_loss <- train_loss_total / num_train
-    avg_test_loss  <- test_loss_total / nrow(test_tensor_func)
-    
-    cat(sprintf("Epoch %d | Train Loss: %.2f | Test Loss: %.2f\n", 
-                epoch, avg_train_loss, avg_test_loss))
+    cat(sprintf("Epoch %d | Norm Train: %.4f | Norm Test: %.4f\n", 
+                epoch, train_norm_loss, test_norm_loss))
   }
 }
 
-# Extract Latent Variables
+# 5. Plot Learning Curve (Normalized)
+history_func_df <- data.frame(
+  Epoch = 1:num_epochs,
+  Train = train_norm_loss_hist,
+  Test  = test_norm_loss_hist
+) %>%
+  pivot_longer(cols = c("Train", "Test"), names_to = "Type", values_to = "NormalizedLoss")
+
+ggplot(history_func_df, aes(x = Epoch, y = NormalizedLoss, color = Type)) +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(0, 1)) + 
+  scale_color_manual(values = c("Train" = "#1f77b4", "Test" = "#d62728")) +
+  labs(title = "Functional VAE Learning Curve",
+       subtitle = "Proportion of Unexplained Variance (Lower is Better)",
+       y = "Normalized Loss (1 - R^2)") +
+  theme_minimal()
+
+# 6. Report Card (Original Scale)
+model_func$eval()
+with_no_grad({
+  output <- model_func(test_tensor_func)
+  recon_log_scaled <- as.matrix(output[[1]])
+  actual_log_scaled <- as.matrix(test_tensor_func)
+})
+
+# Inverse Transform Logic
+recon_raw  <- expm1(recon_log_scaled * max_val_func)
+actual_raw <- expm1(actual_log_scaled * max_val_func)
+
+mse_raw <- mean((recon_raw - actual_raw)^2)
+rmse_raw <- sqrt(mse_raw)
+total_var_raw <- var(as.vector(actual_raw))
+r2_raw <- 1 - (mse_raw / total_var_raw)
+
+
+print(paste("Average Error (RMSE):", round(rmse_raw, 4), "strength units"))
+print(paste("Variance Explained (R2):", round(r2_raw * 100, 2), "%"))
+
+# 7. Extract Features & Merge
 model_func$eval()
 final_out_func <- model_func(x_tensor_func)
 vae_scores_func <- as.matrix(final_out_func[[2]])
 
-# Create Dataframe
-# We use Subject IDs from the cleaned functional dataset
 vae_func_df <- data.frame(Subject = fc_ids_clean, vae_scores_func)
 colnames(vae_func_df)[2:(latent_dim+1)] <- paste0("VAE_Func_LD", 1:latent_dim)
 ```
