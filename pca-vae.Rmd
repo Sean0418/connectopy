@@ -339,6 +339,9 @@ ggplot(history_norm_df, aes(x = Epoch, y = NormalizedLoss, color = Type)) +
        y = "Normalized Loss (1 - R^2)") +
   theme_minimal()
 
+
+
+
 # Extract Latent Variables (Using ALL data for the final features)
 # We switch back to eval mode to get deterministic features
 model$eval()
@@ -349,6 +352,35 @@ vae_scores <- as.matrix(final_out[[2]]) # Extract Mu
 vae_struct_df <- data.frame(Subject = sc_ids, vae_scores)
 colnames(vae_struct_df)[2:(latent_dim+1)] <- paste0("VAE_Struct_LD", 1:latent_dim)
 
+```
+
+
+```{r}
+# 1. Get Predictions on Test Set (in Log-Scaled world)
+model$eval()
+with_no_grad({
+  output <- model(test_tensor)
+  recon_log_scaled <- as.matrix(output[[1]]) # Prediction (0-1)
+  actual_log_scaled <- as.matrix(test_tensor) # Truth (0-1)
+})
+
+# 2. Inverse Transform: Go back to Original Fiber Counts
+# Step A: Un-normalize (multiply by max_val)
+# Step B: Inverse Log (expm1 is the inverse of log1p)
+recon_raw  <- expm1(recon_log_scaled * max_val)
+actual_raw <- expm1(actual_log_scaled * max_val)
+
+# 3. Calculate "Loss" on Original Scale (Mean Squared Error)
+mse_raw <- mean((recon_raw - actual_raw)^2)
+rmse_raw <- sqrt(mse_raw)
+
+# 4. Calculate Variance Explained (R-Squared) on Original Scale
+# This compares the error to the total variety of fiber counts
+total_variance_raw <- var(as.vector(actual_raw))
+r2_raw <- 1 - (mse_raw / total_variance_raw)
+
+print(paste("Average Error (RMSE):", round(rmse_raw, 2), "fibers"))
+print(paste("Variance Explained (R2):", round(r2_raw * 100, 2), "%"))
 ```
 
 
@@ -583,7 +615,7 @@ To extract non-linear biomarkers, we utilized the encoder network of our trained
 ```{r}
 vae_df <- vae_struct_df %>%
   inner_join(vae_func_df, by = "Subject")
-write.csv(vae_df, "Data/vae_df.csv")
+write.csv(vae_df, "Data/vae_df.csv", row.names = FALSE)
 ```
 
 
