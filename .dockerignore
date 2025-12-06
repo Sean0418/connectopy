@@ -1,0 +1,92 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Documentation builds
+docs/_build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# Data files (should be mounted, not copied)
+data/raw/
+data/processed/
+*.mat
+*.csv
+
+# Output files (should be mounted, not copied)
+output/
+*.png
+*.jpg
+*.jpeg
+
+# R package (not needed in Docker)
+r-package/
+
+# AngioNet (separate project)
+AngioNet/
+
+# Manuscript
+manuscript/
+
+# macOS
+.DS_Store
+
+# Large files
+*.zip
+*.tar.gz
+*.tgz
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

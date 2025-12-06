@@ -1,5 +1,7 @@
 # Brain Connectome
 
+[![CI](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml)
+[![Docker](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -13,13 +15,40 @@ A Python package for analyzing brain structural and functional connectomes from 
 - **Statistical Analysis**: Sexual dimorphism analysis with effect sizes and FDR correction
 - **Machine Learning**: Random Forest and XGBoost classifiers for trait prediction
 - **Visualization**: Publication-ready plots for connectome analysis
+- **Reproducibility**: Docker container and automated pipelines
 
-## Installation
+## Quick Start with Docker
+
+The easiest way to run the analysis pipeline:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/sean0418/brain-connectome:latest
+
+# Run the pipeline (mount your data and output directories)
+docker run -v /path/to/your/data:/app/data \
+           -v /path/to/output:/app/output \
+           ghcr.io/sean0418/brain-connectome:latest
+
+# Run with options
+docker run -v /path/to/data:/app/data \
+           -v /path/to/output:/app/output \
+           ghcr.io/sean0418/brain-connectome:latest --quick
+
+# See all options
+docker run ghcr.io/sean0418/brain-connectome:latest --help
+```
+
+## Installation (Development)
 
 ```bash
 # Clone the repository
 git clone https://github.com/Sean0418/Brain-Connectome.git
 cd Brain-Connectome
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install in development mode with all dependencies
 pip install -e ".[dev,docs]"
@@ -28,7 +57,31 @@ pip install -e ".[dev,docs]"
 pre-commit install
 ```
 
-## Quick Start
+## Running the Pipeline
+
+```bash
+# Run the full analysis pipeline
+python Runners/run_pipeline.py
+
+# Quick mode (skip PCA, VAE, and plots)
+python Runners/run_pipeline.py --quick
+
+# Skip specific steps
+python Runners/run_pipeline.py --skip-vae --skip-plots
+```
+
+### Pipeline Steps
+
+| Step | Analysis | Output |
+|------|----------|--------|
+| 1 | Data Loading | Merged dataset |
+| 2 | PCA Analysis | `pca_variance.csv`, `pca_scores.csv` |
+| 3 | VAE Analysis | `vae_latent.csv`, `vae_training_history.csv` |
+| 4 | Dimorphism Analysis | `dimorphism_results.csv` |
+| 5 | ML Classification | `ml_results.csv` |
+| 6 | Visualization | `output/plots/*.png` |
+
+## Python API
 
 ```python
 from brain_connectome import ConnectomeDataLoader, DimorphismAnalysis
@@ -61,23 +114,20 @@ print(f"Top biomarkers:\n{clf.get_top_features(5)}")
 Brain-Connectome/
 ├── brain_connectome/           # Python package
 │   ├── data/                   # Data loading and preprocessing
-│   │   ├── loader.py          # ConnectomeDataLoader
-│   │   └── preprocessing.py   # Preprocessing utilities
-│   ├── analysis/              # Analysis modules
-│   │   ├── pca.py            # PCA analysis
-│   │   ├── vae.py            # VAE dimensionality reduction
-│   │   └── dimorphism.py     # Sexual dimorphism analysis
-│   ├── models/                # Machine learning models
-│   │   └── classifiers.py    # RF and XGBoost classifiers
-│   └── visualization/         # Plotting functions
-│       └── plots.py          # Visualization utilities
-├── tests/                     # Unit tests
-├── docs/                      # Sphinx documentation
-├── data/                      # Data directory (see below)
-│   ├── raw/                   # Raw HCP data files
-│   └── processed/             # Generated datasets
-├── code/                      # Original R analysis (legacy)
-└── pyproject.toml            # Package configuration
+│   ├── analysis/               # PCA, VAE, dimorphism analysis
+│   ├── models/                 # ML classifiers
+│   └── visualization/          # Plotting functions
+├── Runners/                    # Pipeline execution scripts
+├── tests/                      # Unit tests
+├── docs/                       # Sphinx documentation
+├── .github/workflows/          # CI/CD pipelines
+├── data/                       # Data directory
+│   ├── raw/                    # Raw HCP data files
+│   └── processed/              # Generated datasets
+├── output/                     # Analysis outputs
+│   └── plots/                  # Generated visualizations
+├── Dockerfile                  # Container definition
+└── pyproject.toml              # Package configuration
 ```
 
 ## Data
@@ -109,6 +159,7 @@ pytest
 ```bash
 ruff check .
 ruff format .
+mypy brain_connectome/
 ```
 
 ### Building Documentation
@@ -118,11 +169,24 @@ cd docs
 make html
 ```
 
+### Building Docker Image Locally
+
+```bash
+docker build -t brain-connectome .
+docker run -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output brain-connectome
+```
+
+## CI/CD
+
+This project uses GitHub Actions for:
+
+- **CI** (on every push/PR): Linting, type checking, tests across Python 3.10-3.12
+- **Docker** (on push to main): Builds and pushes to GitHub Container Registry
+
 ## Legacy R Code
 
 The original R analysis is preserved in the `code/` directory. The `jasa-template` git tag marks the state before Python refactoring.
 
-To checkout the original R version:
 ```bash
 git checkout jasa-template
 ```

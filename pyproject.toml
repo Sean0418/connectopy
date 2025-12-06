@@ -48,6 +48,8 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
+    "pandas-stubs>=2.0.0",
+    "types-tqdm>=4.60.0",
 ]
 docs = [
     "sphinx>=6.0.0",
@@ -130,4 +132,3 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
-
