@@ -74,4 +74,3 @@ intersphinx_mapping = {
 # Type hints settings
 typehints_fully_qualified = False
 always_document_param_types = True
-

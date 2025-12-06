@@ -1,5 +1,4 @@
-"""
-Environment Setup Module
+"""Environment Setup Module.
 
 Platform-independent module to create and manage Python virtual environments.
 Automatically installs dependencies from requirements.txt.

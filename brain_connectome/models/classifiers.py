@@ -17,6 +17,7 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
 )
+
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
@@ -111,10 +112,16 @@ class ConnectomeRandomForest:
             self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
 
         # Store feature importances
-        self.feature_importances_ = pd.DataFrame({
-            "Feature": self.feature_names,
-            "Importance": self.model.feature_importances_,
-        }).sort_values("Importance", ascending=False).reset_index(drop=True)
+        self.feature_importances_ = (
+            pd.DataFrame(
+                {
+                    "Feature": self.feature_names,
+                    "Importance": self.model.feature_importances_,
+                }
+            )
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
 
         return self
 
@@ -195,9 +202,7 @@ class ConnectomeRandomForest:
         return {
             "accuracy": accuracy_score(y_test, y_pred),
             "confusion_matrix": confusion_matrix(y_test, y_pred),
-            "classification_report": classification_report(
-                y_test, y_pred, output_dict=True
-            ),
+            "classification_report": classification_report(y_test, y_pred, output_dict=True),
         }
 
 
@@ -296,10 +301,16 @@ class ConnectomeXGBoost:
             self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
 
         # Store feature importances
-        self.feature_importances_ = pd.DataFrame({
-            "Feature": self.feature_names,
-            "Importance": self.model.feature_importances_,
-        }).sort_values("Importance", ascending=False).reset_index(drop=True)
+        self.feature_importances_ = (
+            pd.DataFrame(
+                {
+                    "Feature": self.feature_names,
+                    "Importance": self.model.feature_importances_,
+                }
+            )
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
 
         return self
 
@@ -380,8 +391,5 @@ class ConnectomeXGBoost:
         return {
             "accuracy": accuracy_score(y_test, y_pred),
             "confusion_matrix": confusion_matrix(y_test, y_pred),
-            "classification_report": classification_report(
-                y_test, y_pred, output_dict=True
-            ),
+            "classification_report": classification_report(y_test, y_pred, output_dict=True),
         }
-

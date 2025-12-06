@@ -13,10 +13,10 @@ import numpy as np
 import seaborn as sns
 
 if TYPE_CHECKING:
+    import pandas as pd
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
-    import pandas as pd
 
 
 def plot_connectome_matrix(
@@ -54,7 +54,7 @@ def plot_connectome_matrix(
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore[assignment]  # type: ignore[assignment]
 
     if log_scale:
         matrix = np.log1p(matrix)
@@ -63,7 +63,8 @@ def plot_connectome_matrix(
     ax.set_title(title)
     ax.set_xlabel("Region")
     ax.set_ylabel("Region")
-    plt.colorbar(im, ax=ax, label="Log(Connection Strength + 1)" if log_scale else "Connection Strength")
+    label = "Log(Connection Strength + 1)" if log_scale else "Connection Strength"
+    plt.colorbar(im, ax=ax, label=label)
 
     return fig, ax
 
@@ -112,7 +113,7 @@ def plot_pca_scatter(
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore[assignment]
 
     if palette is None:
         palette = {"M": "#1f77b4", "F": "#d62728"}
@@ -120,7 +121,7 @@ def plot_pca_scatter(
     # Scatter plot
     for group in data[hue].unique():
         group_data = data[data[hue] == group]
-        color = palette.get(group, None)
+        color = palette.get(group)
         ax.scatter(
             group_data[pc_x],
             group_data[pc_y],
@@ -176,8 +177,8 @@ def _add_confidence_ellipse(
     alpha : float, default=0.2
         Ellipse transparency.
     """
-    from matplotlib.patches import Ellipse
     import matplotlib.transforms as transforms
+    from matplotlib.patches import Ellipse
 
     if len(x) < 2:
         return
@@ -204,7 +205,7 @@ def _add_confidence_ellipse(
         transforms.Affine2D()
         .rotate_deg(45)
         .scale(scale_x, scale_y)
-        .translate(np.mean(x), np.mean(y))
+        .translate(float(np.mean(x)), float(np.mean(y)))
     )
 
     ellipse.set_transform(transf + ax.transData)
@@ -249,7 +250,7 @@ def plot_dimorphism_comparison(
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore[assignment]
 
     if palette is None:
         palette = {"M": "#1f77b4", "F": "#d62728"}
@@ -311,11 +312,11 @@ def plot_feature_importance(
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore[assignment]
 
     top_features = importances.head(n_features).iloc[::-1]
 
-    colors = plt.cm.viridis(np.linspace(0.3, 0.9, n_features))
+    colors = plt.colormaps["viridis"](np.linspace(0.3, 0.9, n_features))
 
     ax.barh(
         top_features["Feature"],
@@ -362,7 +363,7 @@ def plot_scree(
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore[assignment]
 
     if n_components is not None:
         variance_explained = variance_explained[:n_components]
@@ -380,4 +381,3 @@ def plot_scree(
     ax.grid(True, alpha=0.3)
 
     return fig, ax
-

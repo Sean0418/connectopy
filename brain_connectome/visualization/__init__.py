@@ -2,9 +2,9 @@
 
 from brain_connectome.visualization.plots import (
     plot_connectome_matrix,
-    plot_pca_scatter,
     plot_dimorphism_comparison,
     plot_feature_importance,
+    plot_pca_scatter,
     plot_scree,
 )
 
@@ -15,4 +15,3 @@ __all__ = [
     "plot_feature_importance",
     "plot_scree",
 ]
-

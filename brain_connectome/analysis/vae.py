@@ -111,7 +111,7 @@ class VAEDecoder(nn.Module):
         """
         h = torch.relu(self.fc1(z))
         h = self.dropout(h)
-        return self.fc2(h)
+        return self.fc2(h)  # type: ignore[no-any-return]
 
 
 class ConnectomeVAE:
@@ -407,7 +407,7 @@ class ConnectomeVAE:
         """
         latent = self.encode(X)
 
-        columns = [f"{prefix}{i+1}" for i in range(self.latent_dim)]
+        columns = [f"{prefix}{i + 1}" for i in range(self.latent_dim)]
         df = pd.DataFrame(latent, columns=columns)
 
         if subject_ids is not None:

@@ -182,4 +182,3 @@ def preprocess_connectome(
         metadata["normalized"] = True
 
     return X, metadata
-

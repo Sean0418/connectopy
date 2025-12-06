@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import h5py
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
@@ -123,9 +122,7 @@ class ConnectomeDataLoader:
         FileNotFoundError
             If the TNPCA file is not found.
         """
-        tnpca_path = (
-            self.raw_dir / "TNPCA_Result" / "TNPCA_Coeff_HCP_Structural_Connectome.mat"
-        )
+        tnpca_path = self.raw_dir / "TNPCA_Result" / "TNPCA_Coeff_HCP_Structural_Connectome.mat"
         if not tnpca_path.exists():
             raise FileNotFoundError(f"TNPCA structural file not found: {tnpca_path}")
 
@@ -154,9 +151,7 @@ class ConnectomeDataLoader:
         FileNotFoundError
             If the TNPCA file is not found.
         """
-        tnpca_path = (
-            self.raw_dir / "TNPCA_Result" / "TNPCA_Coeff_HCP_Functional_Connectome.mat"
-        )
+        tnpca_path = self.raw_dir / "TNPCA_Result" / "TNPCA_Coeff_HCP_Functional_Connectome.mat"
         if not tnpca_path.exists():
             raise FileNotFoundError(f"TNPCA functional file not found: {tnpca_path}")
 
@@ -228,13 +223,13 @@ class ConnectomeDataLoader:
         # Create DataFrames
         struct_df = pd.DataFrame(
             struct_coeffs,
-            columns=[f"Struct_PC{i+1}" for i in range(struct_coeffs.shape[1])],
+            columns=[f"Struct_PC{i + 1}" for i in range(struct_coeffs.shape[1])],
         )
         struct_df["Subject"] = struct_ids
 
         func_df = pd.DataFrame(
             func_coeffs,
-            columns=[f"Func_PC{i+1}" for i in range(func_coeffs.shape[1])],
+            columns=[f"Func_PC{i + 1}" for i in range(func_coeffs.shape[1])],
         )
         func_df["Subject"] = func_ids
 
@@ -279,4 +274,3 @@ class ConnectomeDataLoader:
         output_path = self.processed_dir / filename
         df.to_csv(output_path, index=False)
         return output_path
-

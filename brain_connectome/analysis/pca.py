@@ -82,10 +82,7 @@ class ConnectomePCA:
         self : ConnectomePCA
             Fitted estimator.
         """
-        if self.scaler is not None:
-            X_scaled = self.scaler.fit_transform(X)
-        else:
-            X_scaled = X
+        X_scaled = self.scaler.fit_transform(X) if self.scaler is not None else X
 
         self.pca.fit(X_scaled)
 
@@ -109,10 +106,7 @@ class ConnectomePCA:
         X_pca : ndarray of shape (n_samples, n_components)
             Transformed data in PCA space.
         """
-        if self.scaler is not None:
-            X_scaled = self.scaler.transform(X)
-        else:
-            X_scaled = X
+        X_scaled = self.scaler.transform(X) if self.scaler is not None else X
 
         return self.pca.transform(X_scaled)
 
@@ -164,11 +158,13 @@ class ConnectomePCA:
         if self.variance_explained_ is None:
             raise ValueError("Model must be fit before generating report")
 
-        return pd.DataFrame({
-            "Component": range(1, self.n_components + 1),
-            "Variance_Explained": self.variance_explained_,
-            "Cumulative_Variance": self.cumulative_variance_,
-        })
+        return pd.DataFrame(
+            {
+                "Component": range(1, self.n_components + 1),
+                "Variance_Explained": self.variance_explained_,
+                "Cumulative_Variance": self.cumulative_variance_,
+            }
+        )
 
     def to_dataframe(
         self,
@@ -194,7 +190,7 @@ class ConnectomePCA:
         """
         X_pca = self.transform(X)
 
-        columns = [f"{prefix}{i+1}" for i in range(self.n_components)]
+        columns = [f"{prefix}{i + 1}" for i in range(self.n_components)]
         df = pd.DataFrame(X_pca, columns=columns)
 
         if subject_ids is not None:
@@ -203,4 +199,3 @@ class ConnectomePCA:
             df.insert(0, "Subject", range(len(df)))
 
         return df
-

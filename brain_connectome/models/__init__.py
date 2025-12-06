@@ -6,4 +6,3 @@ from brain_connectome.models.classifiers import (
 )
 
 __all__ = ["ConnectomeRandomForest", "ConnectomeXGBoost"]
-
