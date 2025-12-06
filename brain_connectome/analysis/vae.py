@@ -299,7 +299,7 @@ class ConnectomeVAE:
         # Training loop
         iterator = tqdm(range(epochs), desc="Training VAE") if verbose else range(epochs)
 
-        for epoch in iterator:
+        for _ in iterator:
             # Training
             self.encoder.train()
             self.decoder.train()
