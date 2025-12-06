@@ -1,0 +1,22 @@
+Package: brainconnectome
+Title: Brain Connectome Analysis (R Interface to Python Package)
+Version: 0.1.0
+Authors@R: c(
+    person("Riley", "Harper", role = c("aut", "cre")),
+    person("Sean", "Shen", role = "aut"),
+    person("Yinyu", "Yao", role = "aut")
+    )
+Description: R interface to the brain-connectome Python package for analyzing
+    brain structural and functional connectomes from the Human Connectome Project.
+    Uses reticulate to call Python functions, providing a seamless R experience
+    while leveraging the Python implementation.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports:
+    reticulate (>= 1.26)
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+SystemRequirements: Python (>= 3.9), brain-connectome Python package
