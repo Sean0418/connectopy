@@ -1,0 +1,2 @@
+[console_scripts]
+brain-connectome = brain_connectome.cli:main

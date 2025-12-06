@@ -1,0 +1,18 @@
+"""Visualization utilities for brain connectome analysis."""
+
+from brain_connectome.visualization.plots import (
+    plot_connectome_matrix,
+    plot_pca_scatter,
+    plot_dimorphism_comparison,
+    plot_feature_importance,
+    plot_scree,
+)
+
+__all__ = [
+    "plot_connectome_matrix",
+    "plot_pca_scatter",
+    "plot_dimorphism_comparison",
+    "plot_feature_importance",
+    "plot_scree",
+]
+
