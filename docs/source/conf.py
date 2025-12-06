@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 
 # -- Project information -----------------------------------------------------
 project = "brain-connectome"
-copyright = "2024, Riley Harper, Sean Shen, Yinyu Yao"
+copyright = "2024-2025, Riley Harper, Sean Shen, Yinyu Yao"
 author = "Riley Harper, Sean Shen, Yinyu Yao"
 release = "0.1.0"
 
