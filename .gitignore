@@ -23,4 +23,8 @@ output/*.rds
 **/__pycache__/
 *.pyc
 
+# Virtual environment
 .venv/
+
+# Built documentation
+docs/_build/
