@@ -1,0 +1,32 @@
+# Brain Connectome - Pinned Dependencies
+# Generated for reproducibility
+# Python 3.9+
+
+# Core Scientific Computing
+numpy==1.26.4
+pandas==2.2.0
+scipy==1.12.0
+
+# Machine Learning
+scikit-learn==1.4.0
+xgboost==2.0.3
+
+# Deep Learning (for VAE)
+torch==2.2.0
+
+# Data I/O
+h5py==3.10.0
+
+# Visualization
+matplotlib==3.8.2
+seaborn==0.13.2
+
+# Progress Bars
+tqdm==4.66.1
+
+# Development (optional, install with pip install -e ".[dev]")
+# pytest==8.0.0
+# pytest-cov==4.1.0
+# ruff==0.2.0
+# mypy==1.8.0
+# pre-commit==3.6.0
