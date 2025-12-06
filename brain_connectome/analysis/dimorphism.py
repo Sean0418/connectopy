@@ -108,7 +108,7 @@ class DimorphismAnalysis:
         # Pooled standard deviation
         pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
 
-        return (np.mean(group1) - np.mean(group2)) / pooled_std
+        return float((np.mean(group1) - np.mean(group2)) / pooled_std)
 
     def analyze(
         self,
@@ -136,10 +136,8 @@ class DimorphismAnalysis:
         """
         if feature_columns is None:
             # Use all numeric columns except gender
-            feature_columns = [
-                col for col in self.data.select_dtypes(include=[np.number]).columns
-                if col != self.gender_column
-            ]
+            numeric_df: pd.DataFrame = self.data.select_dtypes(include=[np.number])
+            feature_columns = [str(col) for col in numeric_df.columns if col != self.gender_column]
 
         results_list = []
 
@@ -153,19 +151,21 @@ class DimorphismAnalysis:
             # Effect size
             d = self.cohens_d(male_values, female_values)
 
-            results_list.append({
-                "Feature": feature,
-                "T_Statistic": t_stat,
-                "P_Value": p_value,
-                "Cohen_D": d,
-                "Male_Mean": np.mean(male_values),
-                "Female_Mean": np.mean(female_values),
-            })
+            results_list.append(
+                {
+                    "Feature": feature,
+                    "T_Statistic": t_stat,
+                    "P_Value": p_value,
+                    "Cohen_D": d,
+                    "Male_Mean": np.mean(male_values),
+                    "Female_Mean": np.mean(female_values),
+                }
+            )
 
         results = pd.DataFrame(results_list)
 
         # Multiple comparison correction
-        p_values = results["P_Value"].values
+        p_values: NDArray[np.float64] = results["P_Value"].to_numpy()
         if correction_method == "bonferroni":
             p_adjusted = np.minimum(p_values * len(p_values), 1.0)
         elif correction_method == "fdr_bh":
@@ -249,4 +249,3 @@ class DimorphismAnalysis:
             "largest_effect": self.results.iloc[0]["Cohen_D"],
             "most_significant_feature": self.results.sort_values("P_Adjusted").iloc[0]["Feature"],
         }
-

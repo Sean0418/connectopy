@@ -47,9 +47,7 @@ class VAEEncoder(nn.Module):
         self.fc_mu = nn.Linear(hidden_dim, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
 
-    def forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through encoder.
 
         Parameters
@@ -196,12 +194,12 @@ class ConnectomeVAE:
             Number of input features.
         """
         self.input_dim = input_dim
-        self.encoder = VAEEncoder(
-            input_dim, self.hidden_dim, self.latent_dim, self.dropout
-        ).to(self.device)
-        self.decoder = VAEDecoder(
-            self.latent_dim, self.hidden_dim, input_dim, self.dropout
-        ).to(self.device)
+        self.encoder = VAEEncoder(input_dim, self.hidden_dim, self.latent_dim, self.dropout).to(
+            self.device
+        )
+        self.decoder = VAEDecoder(self.latent_dim, self.hidden_dim, input_dim, self.dropout).to(
+            self.device
+        )
 
     def _reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
         """Reparameterization trick for VAE.
@@ -282,19 +280,22 @@ class ConnectomeVAE:
         # Build model
         self._build_model(X_train.shape[1])
 
+        # Assert models are built for type checker
+        assert self.encoder is not None
+        assert self.decoder is not None
+
         # Create data loaders
         train_tensor = torch.tensor(X_train, dtype=torch.float32)
         train_dataset = TensorDataset(train_tensor)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
+        val_tensor: torch.Tensor | None = None
         if X_val is not None:
             val_tensor = torch.tensor(X_val, dtype=torch.float32).to(self.device)
 
         # Optimizer
         params = list(self.encoder.parameters()) + list(self.decoder.parameters())
-        optimizer = torch.optim.Adam(
-            params, lr=self.learning_rate, weight_decay=self.weight_decay
-        )
+        optimizer = torch.optim.Adam(params, lr=self.learning_rate, weight_decay=self.weight_decay)
 
         # Training loop
         iterator = tqdm(range(epochs), desc="Training VAE") if verbose else range(epochs)
@@ -324,7 +325,7 @@ class ConnectomeVAE:
             self.train_losses.append(train_loss / len(X_train))
 
             # Validation
-            if X_val is not None:
+            if X_val is not None and val_tensor is not None:
                 self.encoder.eval()
                 self.decoder.eval()
                 with torch.no_grad():
@@ -415,4 +416,3 @@ class ConnectomeVAE:
             df.insert(0, "Subject", range(len(df)))
 
         return df
-
