@@ -1,5 +1,32 @@
-Please replace the contents of this file with relevant instructions for your repository or remove this file entirely.
+# Analysis Code
 
-This directory would generally contain source code files that contain the core code to implement the method and various utility/auxiliary functions.
+This directory contains the R analysis scripts for the Brain Connectome project.
 
-Scripts/code files that execute the overall workflow to carry out an analysis and generate results for the manuscript might be placed in the main directory.
+## Files
+
+| File | Description | Dependencies |
+|------|-------------|--------------|
+| `pca-vae.Rmd` | PCA and VAE dimensionality reduction on raw connectomes | Run first |
+| `dataloader.Rmd` | Data loading and merging utilities | Requires `pca-vae.Rmd` outputs |
+| `dimorphism.Rmd` | Sexual dimorphism analysis | Can run independently |
+| `final_project2.Rmd` | Main analysis report with ML models | Can run independently |
+
+## Execution Order
+
+1. **`pca-vae.Rmd`** - Must run first to generate:
+   - `../data/processed/raw_struct_pca.csv`
+   - `../data/processed/raw_func_pca.csv`
+   - `../data/processed/raw_pca_df.csv`
+   - `../data/processed/vae_df.csv`
+
+2. **`dataloader.Rmd`** - Merges all data into:
+   - `../data/processed/full_data.csv`
+
+3. **`dimorphism.Rmd`** & **`final_project2.Rmd`** - Can run after data is loaded
+
+## Data Paths
+
+All scripts reference data relative to the `code/` directory:
+- Raw data: `../data/raw/`
+- Processed data: `../data/processed/`
+- Bibliography: `../manuscript/paperdti.bib`

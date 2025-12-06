@@ -1,6 +1,24 @@
-
-.Rproj.user
+# R environment
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
 *.Rproj
+
+# macOS
+.DS_Store
+
+# Large data files
+#*.mat
+#*.csv
+
+/AngioNet/
+
+# Output files
+*.html
+output/*.csv
+output/*.rds
+
+# Cache
+**/__pycache__/
+*.pyc
