@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brain_connectome.data.preprocessing import (
+from connectopy.data.preprocessing import (
     flatten_connectome,
     log_transform,
     minmax_normalize,

@@ -1,6 +1,6 @@
-"""Command-line interface for brain_connectome package.
+"""Command-line interface for connectopy package.
 
-This module provides the entry point for the `brain-connectome` CLI command.
+This module provides the entry point for the `connectopy` CLI command.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from pathlib import Path
 
 
 def main() -> int:
-    """Run the brain-connectome CLI."""
+    """Run the connectopy CLI."""
     parser = argparse.ArgumentParser(
-        prog="brain-connectome",
+        prog="connectopy",
         description="Brain Connectome Analysis Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
@@ -23,9 +23,9 @@ Commands:
   alcohol      Run alcohol classification analysis
 
 Examples:
-  brain-connectome pipeline --quick
-  brain-connectome mediation
-  brain-connectome alcohol --variants tnpca --model-types rf
+  connectopy pipeline --quick
+  connectopy mediation
+  connectopy alcohol --variants tnpca --model-types rf
         """,
     )
 
@@ -76,7 +76,7 @@ Examples:
         parser.print_help()
         return 0
 
-    # Find project root (parent of brain_connectome package)
+    # Find project root (parent of connectopy package)
     project_root = Path(__file__).parent.parent
 
     if args.command == "pipeline":

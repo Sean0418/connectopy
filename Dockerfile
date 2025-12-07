@@ -1,11 +1,11 @@
 # =============================================================================
-# Brain Connectome Analysis Pipeline - Docker Image
+# Connectopy Analysis Pipeline - Docker Image
 # =============================================================================
 # Multi-stage build for optimized image size
 #
 # Usage:
-#   docker build -t brain-connectome .
-#   docker run -v /path/to/data:/app/data -v /path/to/output:/app/output brain-connectome
+#   docker build -t connectopy .
+#   docker run -v /path/to/data:/app/data -v /path/to/output:/app/output connectopy
 #
 # =============================================================================
 
@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy and install the package
 COPY pyproject.toml .
-COPY brain_connectome/ brain_connectome/
+COPY connectopy/ connectopy/
 COPY Runners/ Runners/
 RUN pip install --no-cache-dir .
 
@@ -41,8 +41,8 @@ RUN pip install --no-cache-dir .
 # -----------------------------------------------------------------------------
 FROM python:3.11-slim as runtime
 
-LABEL org.opencontainers.image.title="Brain Connectome Analysis"
-LABEL org.opencontainers.image.description="Reproducible analysis pipeline for brain connectivity data"
+LABEL org.opencontainers.image.title="Connectopy Analysis"
+LABEL org.opencontainers.image.description="Reproducible connectomics analysis pipeline for brain connectivity data"
 LABEL org.opencontainers.image.source="https://github.com/Sean0418/Brain-Connectome"
 LABEL org.opencontainers.image.licenses="MIT"
 
@@ -59,7 +59,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
-COPY brain_connectome/ brain_connectome/
+COPY connectopy/ connectopy/
 COPY Runners/ Runners/
 COPY Documentation/ Documentation/
 COPY README.md .

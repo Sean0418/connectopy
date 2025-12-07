@@ -72,7 +72,7 @@ def run_pca_analysis(data_dir: Path, output_dir: Path) -> None:
     import numpy as np
     from scipy.io import loadmat
 
-    from brain_connectome.analysis import ConnectomePCA
+    from connectopy.analysis import ConnectomePCA
 
     print("Loading raw structural connectome data...")
     sc_path = data_dir / "raw" / "SC" / "HCP_cortical_DesikanAtlas_SC.mat"
@@ -146,7 +146,7 @@ def run_vae_analysis(data_dir: Path, output_dir: Path, epochs: int = 200) -> Non
     from scipy.io import loadmat
     from sklearn.model_selection import train_test_split
 
-    from brain_connectome.analysis import ConnectomeVAE
+    from connectopy.analysis import ConnectomeVAE
 
     print("Loading raw structural connectome data...")
     sc_path = data_dir / "raw" / "SC" / "HCP_cortical_DesikanAtlas_SC.mat"
@@ -228,7 +228,7 @@ def run_vae_analysis(data_dir: Path, output_dir: Path, epochs: int = 200) -> Non
 
 def run_dimorphism_analysis(data, output_dir: Path):
     """Run sexual dimorphism analysis."""
-    from brain_connectome import DimorphismAnalysis
+    from connectopy import DimorphismAnalysis
 
     dimorphism_output = output_dir / "dimorphism_results.csv"
 
@@ -269,7 +269,7 @@ def run_ml_classification(data, output_dir: Path):
     import numpy as np
     import pandas as pd
 
-    from brain_connectome.models import (
+    from connectopy.models import (
         ConnectomeEBM,
         ConnectomeRandomForest,
         get_cognitive_features,
@@ -450,8 +450,8 @@ def run_mediation_analysis(data_dir: Path, output_dir: Path) -> "dict | None":
 
     Model: Cognitive → Brain Network → Alcohol Dependence
     """
-    from brain_connectome.analysis import run_multiple_mediations
-    from brain_connectome.data import (
+    from connectopy.analysis import run_multiple_mediations
+    from connectopy.data import (
         create_alcohol_severity_score,
         create_composite_scores,
         load_merged_hcp_data,
@@ -560,7 +560,7 @@ def generate_plots(data, output_dir: Path, dimorphism_results=None):
     import matplotlib.pyplot as plt
     import pandas as pd
 
-    from brain_connectome.visualization import (
+    from connectopy.visualization import (
         plot_dimorphism_comparison,
         plot_feature_importance,
         plot_pca_scatter,
@@ -742,7 +742,7 @@ def run_pipeline(
         print(f"Loading cached merged dataset from {merged_data_path}")
         data = pd.read_csv(merged_data_path)
     else:
-        from brain_connectome import ConnectomeDataLoader
+        from connectopy import ConnectomeDataLoader
 
         print("Loading and merging HCP data...")
         loader = ConnectomeDataLoader(str(data_dir))

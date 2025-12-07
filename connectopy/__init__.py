@@ -7,10 +7,10 @@ from the Human Connectome Project (HCP).
 __version__ = "0.1.0"
 __author__ = "Riley Harper, Sean Shen, Yinyu Yao"
 
-from brain_connectome.analysis.dimorphism import DimorphismAnalysis
-from brain_connectome.analysis.pca import ConnectomePCA
-from brain_connectome.data.loader import ConnectomeDataLoader
-from brain_connectome.models.classifiers import (
+from connectopy.analysis.dimorphism import DimorphismAnalysis
+from connectopy.analysis.pca import ConnectomePCA
+from connectopy.data.loader import ConnectomeDataLoader
+from connectopy.models.classifiers import (
     ConnectomeEBM,
     ConnectomeRandomForest,
     ConnectomeXGBoost,

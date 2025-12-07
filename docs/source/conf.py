@@ -1,4 +1,4 @@
-"""Sphinx configuration for brain-connectome documentation."""
+"""Sphinx configuration for connectopy documentation."""
 
 import os
 import sys
@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.abspath("../.."))
 
 # -- Project information -----------------------------------------------------
-project = "brain-connectome"
+project = "connectopy"
 copyright = "2024-2025, Riley Harper, Sean Shen, Yinyu Yao"
 author = "Riley Harper, Sean Shen, Yinyu Yao"
 release = "0.1.0"

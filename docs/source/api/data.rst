@@ -1,7 +1,7 @@
 Data Module
 ===========
 
-.. automodule:: brain_connectome.data
+.. automodule:: connectopy.data
    :members:
    :undoc-members:
    :show-inheritance:
@@ -9,7 +9,7 @@ Data Module
 ConnectomeDataLoader
 --------------------
 
-.. autoclass:: brain_connectome.data.loader.ConnectomeDataLoader
+.. autoclass:: connectopy.data.loader.ConnectomeDataLoader
    :members:
    :undoc-members:
    :show-inheritance:
@@ -17,8 +17,7 @@ ConnectomeDataLoader
 Preprocessing Functions
 -----------------------
 
-.. automodule:: brain_connectome.data.preprocessing
+.. automodule:: connectopy.data.preprocessing
    :members:
    :undoc-members:
    :show-inheritance:
-

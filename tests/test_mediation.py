@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from brain_connectome.analysis.mediation import (
+from connectopy.analysis.mediation import (
     MediationAnalysis,
     MediationResult,
     SexStratifiedMediation,

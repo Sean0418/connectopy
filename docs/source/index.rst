@@ -1,7 +1,7 @@
 Brain Connectome Documentation
 ==============================
 
-**brain-connectome** is a Python package for analyzing brain structural and functional
+**connectopy** is a Python package for analyzing brain structural and functional
 connectomes from the Human Connectome Project (HCP).
 
 .. toctree::
@@ -26,7 +26,7 @@ Quick Example
 
 .. code-block:: python
 
-   from brain_connectome import ConnectomeDataLoader, ConnectomePCA, DimorphismAnalysis
+   from connectopy import ConnectomeDataLoader, ConnectomePCA, DimorphismAnalysis
 
    # Load data
    loader = ConnectomeDataLoader("data/")
@@ -46,4 +46,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

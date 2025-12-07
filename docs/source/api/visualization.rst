@@ -1,7 +1,7 @@
 Visualization Module
 ====================
 
-.. automodule:: brain_connectome.visualization
+.. automodule:: connectopy.visualization
    :members:
    :undoc-members:
    :show-inheritance:
@@ -9,8 +9,7 @@ Visualization Module
 Plotting Functions
 ------------------
 
-.. automodule:: brain_connectome.visualization.plots
+.. automodule:: connectopy.visualization.plots
    :members:
    :undoc-members:
    :show-inheritance:
-

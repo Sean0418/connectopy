@@ -1,7 +1,7 @@
 Models Module
 =============
 
-.. automodule:: brain_connectome.models
+.. automodule:: connectopy.models
    :members:
    :undoc-members:
    :show-inheritance:
@@ -9,7 +9,7 @@ Models Module
 ConnectomeRandomForest
 ----------------------
 
-.. autoclass:: brain_connectome.models.classifiers.ConnectomeRandomForest
+.. autoclass:: connectopy.models.classifiers.ConnectomeRandomForest
    :members:
    :undoc-members:
    :show-inheritance:
@@ -17,7 +17,7 @@ ConnectomeRandomForest
 ConnectomeXGBoost
 -----------------
 
-.. autoclass:: brain_connectome.models.classifiers.ConnectomeXGBoost
+.. autoclass:: connectopy.models.classifiers.ConnectomeXGBoost
    :members:
    :undoc-members:
    :show-inheritance:
@@ -25,7 +25,7 @@ ConnectomeXGBoost
 ConnectomeEBM
 -------------
 
-.. autoclass:: brain_connectome.models.classifiers.ConnectomeEBM
+.. autoclass:: connectopy.models.classifiers.ConnectomeEBM
    :members:
    :undoc-members:
    :show-inheritance:
@@ -33,8 +33,8 @@ ConnectomeEBM
 Utility Functions
 -----------------
 
-.. autofunction:: brain_connectome.models.classifiers.select_top_features_by_correlation
+.. autofunction:: connectopy.models.classifiers.select_top_features_by_correlation
 
-.. autofunction:: brain_connectome.models.classifiers.get_cognitive_features
+.. autofunction:: connectopy.models.classifiers.get_cognitive_features
 
-.. autofunction:: brain_connectome.models.classifiers.get_connectome_features
+.. autofunction:: connectopy.models.classifiers.get_connectome_features

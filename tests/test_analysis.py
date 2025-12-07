@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 
-from brain_connectome.analysis.dimorphism import DimorphismAnalysis
-from brain_connectome.analysis.pca import ConnectomePCA
+from connectopy.analysis.dimorphism import DimorphismAnalysis
+from connectopy.analysis.pca import ConnectomePCA
 
 
 class TestConnectomePCA:

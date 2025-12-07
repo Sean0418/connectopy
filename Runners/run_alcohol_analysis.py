@@ -89,7 +89,7 @@ def prepare_ebm_input_datasets(df, output_dir: Path):
     datasets : dict
         Dictionary mapping variant name to DataFrame.
     """
-    from brain_connectome.models import get_cognitive_features
+    from connectopy.models import get_cognitive_features
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -168,7 +168,7 @@ def train_rf_variant(
     """
     import numpy as np
 
-    from brain_connectome.models import ConnectomeRandomForest
+    from connectopy.models import ConnectomeRandomForest
 
     cols = feature_names + ["alc_y"]
     sub = df_sex[cols].dropna().copy()
@@ -255,7 +255,7 @@ def train_ebm_variant(
     """
     import numpy as np
 
-    from brain_connectome.models import ConnectomeEBM
+    from connectopy.models import ConnectomeEBM
 
     cols = feature_names + ["alc_y"]
     sub = df_sex[cols].dropna().copy()
@@ -402,7 +402,7 @@ def run_alcohol_analysis(
     """
     import pandas as pd
 
-    from brain_connectome.models import get_cognitive_features, get_connectome_features
+    from connectopy.models import get_cognitive_features, get_connectome_features
 
     # Set defaults for mutable arguments
     if variants is None:

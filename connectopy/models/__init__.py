@@ -1,6 +1,6 @@
 """Machine learning models for connectome classification and prediction."""
 
-from brain_connectome.models.classifiers import (
+from connectopy.models.classifiers import (
     HCP_COGNITIVE_FEATURES,
     ConnectomeEBM,
     ConnectomeRandomForest,

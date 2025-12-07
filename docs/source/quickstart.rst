@@ -1,7 +1,7 @@
 Quickstart Guide
 ================
 
-This guide will walk you through the basic usage of the brain-connectome package.
+This guide will walk you through the basic usage of the connectopy package.
 
 Loading Data
 ------------
@@ -10,7 +10,7 @@ The ``ConnectomeDataLoader`` class handles loading and merging HCP data:
 
 .. code-block:: python
 
-   from brain_connectome.data import ConnectomeDataLoader
+   from connectopy.data import ConnectomeDataLoader
 
    # Initialize with data directory
    loader = ConnectomeDataLoader("data/")
@@ -33,7 +33,7 @@ Preprocess raw connectome matrices for analysis:
 
 .. code-block:: python
 
-   from brain_connectome.data import preprocess_connectome
+   from connectopy.data import preprocess_connectome
 
    # Full preprocessing pipeline
    X_processed, metadata = preprocess_connectome(
@@ -53,7 +53,7 @@ Perform PCA on connectome features:
 
 .. code-block:: python
 
-   from brain_connectome.analysis import ConnectomePCA
+   from connectopy.analysis import ConnectomePCA
 
    # Initialize and fit PCA
    pca = ConnectomePCA(n_components=60)
@@ -76,7 +76,7 @@ Analyze sex differences in brain connectivity:
 
 .. code-block:: python
 
-   from brain_connectome.analysis import DimorphismAnalysis
+   from connectopy.analysis import DimorphismAnalysis
 
    # Initialize analysis
    analysis = DimorphismAnalysis(merged, gender_column="Gender")
@@ -104,7 +104,7 @@ Train classifiers to predict traits from connectome features:
 
 .. code-block:: python
 
-   from brain_connectome.models import ConnectomeRandomForest
+   from connectopy.models import ConnectomeRandomForest
    from sklearn.model_selection import train_test_split
 
    # Prepare data
@@ -136,7 +136,7 @@ Create publication-ready plots:
 
 .. code-block:: python
 
-   from brain_connectome.visualization import (
+   from connectopy.visualization import (
        plot_pca_scatter,
        plot_dimorphism_comparison,
        plot_feature_importance,
@@ -168,13 +168,13 @@ Here's a complete example combining all steps:
 
 .. code-block:: python
 
-   from brain_connectome import (
+   from connectopy import (
        ConnectomeDataLoader,
        ConnectomePCA,
        DimorphismAnalysis,
    )
-   from brain_connectome.models import ConnectomeRandomForest
-   from brain_connectome.visualization import plot_pca_scatter
+   from connectopy.models import ConnectomeRandomForest
+   from connectopy.visualization import plot_pca_scatter
 
    # 1. Load data
    loader = ConnectomeDataLoader("data/")
@@ -201,4 +201,3 @@ Here's a complete example combining all steps:
    # 4. Visualize
    fig, ax = plot_pca_scatter(data, title="Sexual Dimorphism in Brain Connectivity")
    fig.savefig("output/dimorphism_plot.png", dpi=300)
-

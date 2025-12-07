@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from brain_connectome.models.classifiers import (
+from connectopy.models.classifiers import (
     ConnectomeRandomForest,
     get_cognitive_features,
     get_connectome_features,
@@ -15,7 +15,7 @@ from brain_connectome.models.classifiers import (
 try:
     from interpret.glassbox import ExplainableBoostingClassifier  # noqa: F401
 
-    from brain_connectome.models.classifiers import ConnectomeEBM
+    from connectopy.models.classifiers import ConnectomeEBM
 
     EBM_AVAILABLE = True
 except ImportError:

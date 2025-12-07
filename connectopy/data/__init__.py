@@ -1,6 +1,6 @@
 """Data loading and processing modules."""
 
-from brain_connectome.data.hcp_loader import (
+from connectopy.data.hcp_loader import (
     create_alcohol_severity_score,
     create_composite_scores,
     load_alcohol_measures,
@@ -9,8 +9,8 @@ from brain_connectome.data.hcp_loader import (
     load_merged_hcp_data,
     load_structural_connectivity,
 )
-from brain_connectome.data.loader import ConnectomeDataLoader
-from brain_connectome.data.preprocessing import preprocess_connectome
+from connectopy.data.loader import ConnectomeDataLoader
+from connectopy.data.preprocessing import preprocess_connectome
 
 __all__ = [
     "ConnectomeDataLoader",

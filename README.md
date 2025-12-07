@@ -1,4 +1,4 @@
-# Brain Connectome
+# Connectopy
 
 [![CI](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml)
 [![Docker](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml)
@@ -37,20 +37,20 @@ The easiest way to run the analysis pipeline locally:
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/sean0418/brain-connectome:latest
+docker pull ghcr.io/sean0418/connectopy:latest
 
 # Run the pipeline (mount your data and output directories)
 docker run -v /path/to/your/data:/app/data \
            -v /path/to/output:/app/output \
-           ghcr.io/sean0418/brain-connectome:latest
+           ghcr.io/sean0418/connectopy:latest
 
 # Run with options
 docker run -v /path/to/data:/app/data \
            -v /path/to/output:/app/output \
-           ghcr.io/sean0418/brain-connectome:latest --quick
+           ghcr.io/sean0418/connectopy:latest --quick
 
 # See all options
-docker run ghcr.io/sean0418/brain-connectome:latest --help
+docker run ghcr.io/sean0418/connectopy:latest --help
 ```
 
 ## Installation (Development)
@@ -142,13 +142,13 @@ python Runners/run_alcohol_analysis.py --model-types rf
 ## Python API
 
 ```python
-from brain_connectome import (
+from connectopy import (
     ConnectomeDataLoader,
     DimorphismAnalysis,
     ConnectomeRandomForest,
     ConnectomeEBM,
 )
-from brain_connectome.models import get_cognitive_features, get_connectome_features
+from connectopy.models import get_cognitive_features, get_connectome_features
 
 # Load data
 loader = ConnectomeDataLoader("data/")
@@ -181,7 +181,7 @@ conn_features = get_connectome_features(data, "tnpca")  # TNPCA connectome featu
 Test whether brain networks mediate the relationship between cognitive traits and alcohol outcomes:
 
 ```python
-from brain_connectome.analysis import SexStratifiedMediation
+from connectopy.analysis import SexStratifiedMediation
 
 # Run sex-stratified mediation analysis
 # Model: Cognitive → Brain Network → Alcohol Dependence
@@ -203,7 +203,7 @@ print(f"Sex difference significant: {result.diff_significant}")
 
 ```
 Brain-Connectome/
-├── brain_connectome/           # Python package
+├── connectopy/                 # Python package
 │   ├── data/                   # Data loading (HCPLoader, preprocessing)
 │   ├── analysis/               # PCA, VAE, dimorphism, mediation analysis
 │   ├── models/                 # ML classifiers (RF, XGBoost, EBM)
@@ -250,7 +250,7 @@ pytest
 ```bash
 ruff check .
 ruff format .
-mypy brain_connectome/
+mypy connectopy/
 ```
 
 ### Building Documentation
@@ -273,8 +273,8 @@ start _build/html/index.html
 ### Building Docker Image Locally
 
 ```bash
-docker build -t brain-connectome .
-docker run -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output brain-connectome
+docker build -t connectopy .
+docker run -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output connectopy
 ```
 
 ## Reproducibility Checklist

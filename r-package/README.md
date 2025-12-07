@@ -1,6 +1,6 @@
-# brainconnectome (R Package)
+# connectopy (R Package)
 
-R interface to the `brain-connectome` Python package using `reticulate`.
+R interface to the `connectopy` Python package using `reticulate`.
 
 ## Installation
 
@@ -18,7 +18,7 @@ pip install -e .
 install.packages("reticulate")
 install.packages("devtools")
 
-# Install brainconnectome from local source
+# Install connectopy from local source
 devtools::install("r-package")
 ```
 
@@ -27,13 +27,13 @@ devtools::install("r-package")
 If you're using a virtual environment or conda:
 
 ```r
-library(brainconnectome)
+library(connectopy)
 
 # Option 1: Use a virtualenv
-configure_python(virtualenv = "~/.venv/brain-connectome")
+configure_python(virtualenv = "~/.venv/connectopy")
 
 # Option 2: Use conda
-configure_python(condaenv = "brain-connectome")
+configure_python(condaenv = "connectopy")
 
 # Option 3: Use specific Python
 configure_python(python = "/usr/local/bin/python3")
@@ -42,7 +42,7 @@ configure_python(python = "/usr/local/bin/python3")
 ## Quick Start
 
 ```r
-library(brainconnectome)
+library(connectopy)
 
 # Load data
 loader <- ConnectomeDataLoader("data/")
@@ -138,7 +138,7 @@ head(report)
 
 ## How It Works
 
-This R package is a thin wrapper around the Python `brain-connectome` package.
+This R package is a thin wrapper around the Python `connectopy` package.
 It uses `reticulate` to call Python functions, so:
 
 1. **Any changes to the Python code automatically work in R** - no need to update the R package

@@ -61,7 +61,7 @@ def install_dependencies(python_path: Path) -> None:
     )
 
     # Also install the package in editable mode
-    print("Installing brain-connectome package in editable mode...")
+    print("Installing connectopy package in editable mode...")
     subprocess.run(
         [str(python_path), "-m", "pip", "install", "-e", str(project_root)],
         check=True,

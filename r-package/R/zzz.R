@@ -4,28 +4,28 @@
 #' @importFrom reticulate import py_module_available
 .onLoad <- function(libname, pkgname) {
   # Delay loading Python modules until they're needed
-  .pkg_env$brain_connectome <- NULL
+  .pkg_env$connectopy <- NULL
 }
 
-#' Get the brain_connectome Python module
+#' Get the connectopy Python module
 #'
-#' @return The brain_connectome Python module
+#' @return The connectopy Python module
 #' @keywords internal
-get_brain_connectome <- function() {
-  if (is.null(.pkg_env$brain_connectome)) {
-    if (!reticulate::py_module_available("brain_connectome")) {
+get_connectopy <- function() {
+  if (is.null(.pkg_env$connectopy)) {
+    if (!reticulate::py_module_available("connectopy")) {
       stop(
-        "Python package 'brain_connectome' is not installed.\n",
+        "Python package 'connectopy' is not installed.\n",
         "Install it with: pip install -e /path/to/Brain-Connectome",
         call. = FALSE
       )
     }
-    .pkg_env$brain_connectome <- reticulate::import("brain_connectome")
+    .pkg_env$connectopy <- reticulate::import("connectopy")
   }
-  .pkg_env$brain_connectome
+  .pkg_env$connectopy
 }
 
-#' Configure Python environment for brainconnectome
+#' Configure Python environment for connectopy
 #'
 #' Set the Python environment to use. Call this before using any other
 #' functions if you need to use a specific Python installation.
@@ -38,10 +38,10 @@ get_brain_connectome <- function() {
 #' @examples
 #' \dontrun{
 #' # Use a specific virtualenv
-#' configure_python(virtualenv = "~/.venv/brain-connectome")
+#' configure_python(virtualenv = "~/.venv/connectopy")
 #'
 #' # Use a conda environment
-#' configure_python(condaenv = "brain-connectome")
+#' configure_python(condaenv = "connectopy")
 #' }
 configure_python <- function(python = NULL, virtualenv = NULL, condaenv = NULL) {
   if (!is.null(virtualenv)) {
@@ -54,7 +54,7 @@ configure_python <- function(python = NULL, virtualenv = NULL, condaenv = NULL) 
 
   # Reset cached module
 
-.pkg_env$brain_connectome <- NULL
+.pkg_env$connectopy <- NULL
 
   invisible(TRUE)
 }

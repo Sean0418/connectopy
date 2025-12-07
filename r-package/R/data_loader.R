@@ -14,7 +14,7 @@
 #' data <- load_merged_dataset(loader)
 #' }
 ConnectomeDataLoader <- function(data_dir) {
-  bc <- get_brain_connectome()
+  bc <- get_connectopy()
   bc$ConnectomeDataLoader(data_dir)
 }
 

@@ -1,4 +1,4 @@
-"""Pytest fixtures for brain_connectome tests."""
+"""Pytest fixtures for connectopy tests."""
 
 import numpy as np
 import pandas as pd

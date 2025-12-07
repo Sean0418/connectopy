@@ -17,8 +17,8 @@
 #' }
 ConnectomeRandomForest <- function(n_estimators = 500L, max_depth = NULL,
                                     random_state = 42L) {
-  bc <- get_brain_connectome()
-  models <- reticulate::import("brain_connectome.models")
+  bc <- get_connectopy()
+  models <- reticulate::import("connectopy.models")
   models$ConnectomeRandomForest(
     n_estimators = as.integer(n_estimators),
     max_depth = max_depth,
@@ -127,7 +127,7 @@ rf_evaluate <- function(model, X_test, y_test) {
 #' @export
 ConnectomeXGBoost <- function(n_estimators = 500L, max_depth = 4L,
                                learning_rate = 0.05, random_state = 42L) {
-  models <- reticulate::import("brain_connectome.models")
+  models <- reticulate::import("connectopy.models")
   models$ConnectomeXGBoost(
     n_estimators = as.integer(n_estimators),
     max_depth = as.integer(max_depth),

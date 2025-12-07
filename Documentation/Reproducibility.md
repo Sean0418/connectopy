@@ -38,7 +38,7 @@ python Runners/run_pipeline.py
 devtools::install("r-package")
 
 # Load and use
-library(brainconnectome)
+library(connectopy)
 loader <- ConnectomeDataLoader("data/")
 data <- load_merged_dataset(loader)
 ```
@@ -123,7 +123,7 @@ python Runners/run_pipeline.py --skip-ml          # Skip ML classification
 
 ```
 Brain-Connectome/
-├── brain_connectome/           # Python package
+├── connectopy/           # Python package
 │   ├── data/                   # Data loading (loader.py, preprocessing.py)
 │   ├── analysis/               # Analysis (pca.py, vae.py, dimorphism.py)
 │   ├── models/                 # ML models (classifiers.py)

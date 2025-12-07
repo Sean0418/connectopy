@@ -1,1 +1,1 @@
-"""Test suite for brain_connectome package."""
+"""Test suite for connectopy package."""

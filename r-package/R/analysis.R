@@ -14,7 +14,7 @@
 #' scores <- pca_fit_transform(pca, X)
 #' }
 ConnectomePCA <- function(n_components = 60L, scale = TRUE) {
-  bc <- get_brain_connectome()
+  bc <- get_connectopy()
   bc$ConnectomePCA(n_components = as.integer(n_components), scale = scale)
 }
 
@@ -103,7 +103,7 @@ pca_total_variance <- function(pca) {
 #' }
 DimorphismAnalysis <- function(data, gender_column = "Gender",
                                 male_label = "M", female_label = "F") {
-  bc <- get_brain_connectome()
+  bc <- get_connectopy()
   bc$DimorphismAnalysis(
     data = data,
     gender_column = gender_column,

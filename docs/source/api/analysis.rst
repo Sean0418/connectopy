@@ -1,7 +1,7 @@
 Analysis Module
 ===============
 
-.. automodule:: brain_connectome.analysis
+.. automodule:: connectopy.analysis
    :members:
    :undoc-members:
    :show-inheritance:
@@ -9,7 +9,7 @@ Analysis Module
 ConnectomePCA
 -------------
 
-.. autoclass:: brain_connectome.analysis.pca.ConnectomePCA
+.. autoclass:: connectopy.analysis.pca.ConnectomePCA
    :members:
    :undoc-members:
    :show-inheritance:
@@ -17,7 +17,7 @@ ConnectomePCA
 ConnectomeVAE
 -------------
 
-.. autoclass:: brain_connectome.analysis.vae.ConnectomeVAE
+.. autoclass:: connectopy.analysis.vae.ConnectomeVAE
    :members:
    :undoc-members:
    :show-inheritance:
@@ -25,8 +25,7 @@ ConnectomeVAE
 DimorphismAnalysis
 ------------------
 
-.. autoclass:: brain_connectome.analysis.dimorphism.DimorphismAnalysis
+.. autoclass:: connectopy.analysis.dimorphism.DimorphismAnalysis
    :members:
    :undoc-members:
    :show-inheritance:
-

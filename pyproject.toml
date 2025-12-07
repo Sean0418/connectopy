@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brain-connectome"
+name = "connectopy"
 version = "0.1.0"
 description = "Analysis of brain structural and functional connectomes from the Human Connectome Project"
 readme = "README.md"
@@ -61,15 +61,15 @@ docs = [
 
 [project.urls]
 Homepage = "https://github.com/Sean0418/Brain-Connectome"
-Documentation = "https://brain-connectome.readthedocs.io"
+Documentation = "https://connectopy.readthedocs.io"
 Repository = "https://github.com/Sean0418/Brain-Connectome"
 
 [project.scripts]
-brain-connectome = "brain_connectome.cli:main"
+connectopy = "connectopy.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["brain_connectome*"]
+include = ["connectopy*"]
 
 # Ruff configuration (linting and formatting)
 [tool.ruff]
@@ -112,7 +112,7 @@ python_functions = ["test_*"]
 addopts = [
     "-v",
     "--tb=short",
-    "--cov=brain_connectome",
+    "--cov=connectopy",
     "--cov-report=term-missing",
 ]
 
@@ -125,7 +125,7 @@ ignore_missing_imports = true
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["brain_connectome"]
+source = ["connectopy"]
 omit = ["tests/*", "docs/*"]
 
 [tool.coverage.report]
