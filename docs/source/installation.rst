@@ -1,15 +1,6 @@
 Installation
 ============
 
-Requirements
-------------
-
-* Python 3.9 or higher
-* NumPy, Pandas, SciPy
-* scikit-learn
-* PyTorch (for VAE)
-* XGBoost (optional)
-
 Install from Source
 -------------------
 
