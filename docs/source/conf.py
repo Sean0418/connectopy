@@ -58,10 +58,12 @@ napoleon_type_aliases = None
 autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
-    "special-members": "__init__",
     "undoc-members": True,
     "exclude-members": "__weakref__",
 }
+
+# Suppress warnings about __init__ on modules
+suppress_warnings = ["autodoc"]
 
 # Intersphinx mapping
 intersphinx_mapping = {
