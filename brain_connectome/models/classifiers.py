@@ -1,22 +1,39 @@
 """Classification models for brain connectome analysis.
 
-This module provides wrapper classes for Random Forest and XGBoost classifiers
-with additional functionality for feature importance analysis and
-connectome-specific reporting.
+This module provides wrapper classes for Random Forest, XGBoost, and EBM classifiers
+with additional functionality for feature importance analysis, hyperparameter tuning,
+class imbalance handling, and connectome-specific reporting.
+
+Key features:
+- GridSearchCV for hyperparameter optimization
+- Class imbalance handling via sample weights
+- Feature selection utilities
+- ROC curve generation and comprehensive metrics
+- Model persistence with joblib
 """
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
     accuracy_score,
+    balanced_accuracy_score,
     classification_report,
     confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
 )
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
+from sklearn.pipeline import Pipeline
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -211,6 +228,161 @@ class ConnectomeRandomForest:
             "confusion_matrix": confusion_matrix(y_test, y_pred),
             "classification_report": classification_report(y_test, y_pred, output_dict=True),
         }
+
+    def fit_with_cv(
+        self,
+        X: NDArray[np.float64],
+        y: NDArray,
+        feature_names: list[str] | None = None,
+        test_size: float = 0.2,
+        n_splits: int = 5,
+        handle_imbalance: bool = True,
+        param_grid: dict[str, list] | None = None,
+    ) -> dict[str, Any]:
+        """Fit the model with cross-validation and hyperparameter tuning.
+
+        This method provides a complete training pipeline including:
+        - Stratified train/test split
+        - Class imbalance handling via sample weights
+        - GridSearchCV for hyperparameter optimization
+        - Comprehensive metrics computation
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Training features.
+        y : ndarray of shape (n_samples,)
+            Target labels.
+        feature_names : list of str, optional
+            Names of features.
+        test_size : float, default=0.2
+            Proportion of data for testing.
+        n_splits : int, default=5
+            Number of CV folds.
+        handle_imbalance : bool, default=True
+            Whether to apply sample weights for class imbalance.
+        param_grid : dict, optional
+            Parameter grid for GridSearchCV. If None, uses defaults.
+
+        Returns
+        -------
+        metrics : dict
+            Dictionary containing train/test metrics, best parameters, etc.
+        """
+        # Stratified train/test split
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, stratify=y, random_state=42
+        )
+
+        if feature_names is not None:
+            self.feature_names = feature_names
+        else:
+            self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        # Class imbalance handling
+        sample_weight = None
+        if handle_imbalance:
+            class_counts = np.bincount(y_train.astype(int))
+            n_total = len(y_train)
+            w_neg = n_total / (2.0 * class_counts[0])
+            w_pos = n_total / (2.0 * class_counts[1])
+            sample_weight = np.where(y_train == 1, w_pos, w_neg)
+
+        # Pipeline with imputation
+        pipe = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="median")),
+                ("rf", self.model),
+            ]
+        )
+
+        # Default parameter grid
+        if param_grid is None:
+            param_grid = {
+                "rf__n_estimators": [300, 500],
+                "rf__max_depth": [None, 10, 20],
+                "rf__min_samples_leaf": [1, 5, 10],
+                "rf__max_features": ["sqrt", "log2", 0.3],
+            }
+
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        grid = GridSearchCV(
+            estimator=pipe,
+            param_grid=param_grid,
+            scoring="roc_auc",
+            cv=cv,
+            n_jobs=-1,
+            verbose=0,
+        )
+
+        # Fit with sample weights
+        fit_params = {}
+        if sample_weight is not None:
+            fit_params["rf__sample_weight"] = sample_weight
+
+        grid.fit(X_train, y_train, **fit_params)
+
+        # Store best model
+        self.model = grid.best_estimator_.named_steps["rf"]
+        self.classes_ = np.unique(y)
+        self._best_params = grid.best_params_
+        self._cv_score = grid.best_score_
+
+        # Store feature importances
+        self.feature_importances_ = (
+            pd.DataFrame(
+                {
+                    "Feature": self.feature_names,
+                    "Importance": self.model.feature_importances_,
+                }
+            )
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        # Compute comprehensive metrics
+        y_train_proba = grid.best_estimator_.predict_proba(X_train)[:, 1]
+        y_test_proba = grid.best_estimator_.predict_proba(X_test)[:, 1]
+        y_train_pred = (y_train_proba >= 0.5).astype(int)
+        y_test_pred = (y_test_proba >= 0.5).astype(int)
+
+        metrics = {
+            "n_train": int(len(y_train)),
+            "n_test": int(len(y_test)),
+            "cv_best_auc": float(grid.best_score_),
+            "train_auc": float(roc_auc_score(y_train, y_train_proba)),
+            "test_auc": float(roc_auc_score(y_test, y_test_proba)),
+            "train_accuracy": float(accuracy_score(y_train, y_train_pred)),
+            "test_accuracy": float(accuracy_score(y_test, y_test_pred)),
+            "train_bal_acc": float(balanced_accuracy_score(y_train, y_train_pred)),
+            "test_bal_acc": float(balanced_accuracy_score(y_test, y_test_pred)),
+            "train_precision": float(precision_score(y_train, y_train_pred, zero_division=0)),
+            "test_precision": float(precision_score(y_test, y_test_pred, zero_division=0)),
+            "train_recall": float(recall_score(y_train, y_train_pred, zero_division=0)),
+            "test_recall": float(recall_score(y_test, y_test_pred, zero_division=0)),
+            "train_f1": float(f1_score(y_train, y_train_pred, zero_division=0)),
+            "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
+            "best_params": grid.best_params_,
+        }
+
+        # Store ROC data for plotting
+        fpr, tpr, _ = roc_curve(y_test, y_test_proba)
+        self._roc_data = {"fpr": fpr, "tpr": tpr, "auc": metrics["test_auc"]}
+        self._test_data = (X_test, y_test, y_test_proba)
+
+        return metrics
+
+    def get_roc_data(self) -> dict[str, NDArray]:
+        """Get ROC curve data after fitting with CV.
+
+        Returns
+        -------
+        roc_data : dict
+            Dictionary with 'fpr', 'tpr', and 'auc' keys.
+        """
+        if not hasattr(self, "_roc_data"):
+            raise ValueError("Must call fit_with_cv first")
+        return self._roc_data
 
 
 class ConnectomeXGBoost:
@@ -662,3 +834,342 @@ class ConnectomeEBM:
         if self.feature_importances_ is None:
             raise ValueError("Model must be fit first")
         return self.model.explain_local(X)
+
+    def fit_with_cv(
+        self,
+        X: NDArray[np.float64],
+        y: NDArray,
+        feature_names: list[str] | None = None,
+        test_size: float = 0.2,
+        n_splits: int = 5,
+        handle_imbalance: bool = True,
+        param_grid: dict[str, list] | None = None,
+    ) -> dict[str, Any]:
+        """Fit the model with cross-validation and hyperparameter tuning.
+
+        This method provides a complete training pipeline including:
+        - Stratified train/test split
+        - Class imbalance handling via sample weights
+        - GridSearchCV for hyperparameter optimization
+        - Comprehensive metrics computation
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Training features.
+        y : ndarray of shape (n_samples,)
+            Target labels.
+        feature_names : list of str, optional
+            Names of features.
+        test_size : float, default=0.2
+            Proportion of data for testing.
+        n_splits : int, default=5
+            Number of CV folds.
+        handle_imbalance : bool, default=True
+            Whether to apply sample weights for class imbalance.
+        param_grid : dict, optional
+            Parameter grid for GridSearchCV. If None, uses defaults.
+
+        Returns
+        -------
+        metrics : dict
+            Dictionary containing train/test metrics, best parameters, etc.
+        """
+        # Stratified train/test split
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, stratify=y, random_state=42
+        )
+
+        if feature_names is not None:
+            self.feature_names = feature_names
+        else:
+            self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        # Class imbalance handling
+        sample_weight = None
+        if handle_imbalance:
+            class_counts = np.bincount(y_train.astype(int))
+            n_total = len(y_train)
+            w_neg = n_total / (2.0 * class_counts[0])
+            w_pos = n_total / (2.0 * class_counts[1])
+            sample_weight = np.where(y_train == 1, w_pos, w_neg)
+
+        # Default parameter grid with regularization for EBM
+        if param_grid is None:
+            param_grid = {
+                "max_leaves": [2, 3],
+                "min_samples_leaf": [50, 100],
+                "learning_rate": [0.01],
+                "outer_bags": [16],
+                "max_bins": [32],
+                "interactions": [0],  # Pure additive model
+            }
+
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        grid = GridSearchCV(
+            estimator=self.model,
+            param_grid=param_grid,
+            scoring="roc_auc",
+            cv=cv,
+            n_jobs=-1,
+            verbose=0,
+        )
+
+        # Fit with sample weights
+        grid.fit(X_train, y_train, sample_weight=sample_weight)
+
+        # Store best model
+        self.model = grid.best_estimator_
+        self.classes_ = np.array([0, 1])
+        self._best_params = grid.best_params_
+        self._cv_score = grid.best_score_
+
+        # Extract feature importances from EBM
+        importances = []
+        term_importances = self.model.term_importances()
+        for i, _ in enumerate(self.feature_names):
+            if i < len(term_importances):
+                importances.append(term_importances[i])
+            else:
+                importances.append(0.0)
+
+        self.feature_importances_ = (
+            pd.DataFrame(
+                {
+                    "Feature": self.feature_names,
+                    "Importance": importances,
+                }
+            )
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        # Compute comprehensive metrics
+        y_train_proba = self.model.predict_proba(X_train)[:, 1]
+        y_test_proba = self.model.predict_proba(X_test)[:, 1]
+        y_train_pred = (y_train_proba >= 0.5).astype(int)
+        y_test_pred = (y_test_proba >= 0.5).astype(int)
+
+        metrics = {
+            "n_train": int(len(y_train)),
+            "n_test": int(len(y_test)),
+            "n_features_used": len(self.feature_names),
+            "cv_best_auc": float(grid.best_score_),
+            "train_auc": float(roc_auc_score(y_train, y_train_proba)),
+            "test_auc": float(roc_auc_score(y_test, y_test_proba)),
+            "train_accuracy": float(accuracy_score(y_train, y_train_pred)),
+            "test_accuracy": float(accuracy_score(y_test, y_test_pred)),
+            "train_bal_acc": float(balanced_accuracy_score(y_train, y_train_pred)),
+            "test_bal_acc": float(balanced_accuracy_score(y_test, y_test_pred)),
+            "train_precision": float(precision_score(y_train, y_train_pred, zero_division=0)),
+            "test_precision": float(precision_score(y_test, y_test_pred, zero_division=0)),
+            "train_recall": float(recall_score(y_train, y_train_pred, zero_division=0)),
+            "test_recall": float(recall_score(y_test, y_test_pred, zero_division=0)),
+            "train_f1": float(f1_score(y_train, y_train_pred, zero_division=0)),
+            "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
+            "best_params": json.dumps(grid.best_params_),
+        }
+
+        # Store ROC data for plotting
+        fpr, tpr, _ = roc_curve(y_test, y_test_proba)
+        self._roc_data = {"fpr": fpr, "tpr": tpr, "auc": metrics["test_auc"]}
+        self._test_data = (X_test, y_test, y_test_proba)
+
+        return metrics
+
+    def get_roc_data(self) -> dict[str, NDArray]:
+        """Get ROC curve data after fitting with CV.
+
+        Returns
+        -------
+        roc_data : dict
+            Dictionary with 'fpr', 'tpr', and 'auc' keys.
+        """
+        if not hasattr(self, "_roc_data"):
+            raise ValueError("Must call fit_with_cv first")
+        return self._roc_data
+
+
+# =============================================================================
+# Feature Selection Utilities
+# =============================================================================
+
+
+def select_top_features_by_correlation(
+    X: pd.DataFrame,
+    y: NDArray,
+    feature_cols: list[str],
+    k: int = 40,
+) -> tuple[list[str], list[tuple[str, float]]]:
+    """Select top-k features by absolute Pearson correlation with target.
+
+    This is useful for reducing dimensionality when you have many connectome
+    features but want to focus on those most related to the outcome.
+
+    Parameters
+    ----------
+    X : DataFrame
+        Feature matrix with named columns.
+    y : ndarray
+        Target variable (binary or continuous).
+    feature_cols : list of str
+        Column names to consider for selection.
+    k : int, default=40
+        Number of top features to select.
+
+    Returns
+    -------
+    selected : list of str
+        Names of selected features.
+    scores : list of tuple
+        All (feature_name, abs_correlation) pairs, sorted descending.
+
+    Examples
+    --------
+    >>> selected, scores = select_top_features_by_correlation(
+    ...     X_train, y_train, connectome_cols, k=40
+    ... )
+    >>> X_train_selected = X_train[selected]
+    """
+    scores = []
+    y_float = y.astype(float)
+
+    for col in feature_cols:
+        x = X[col].values.astype(float)
+        mask = ~np.isnan(x)
+        if mask.sum() < 10:
+            scores.append((col, 0.0))
+            continue
+        x_mask = x[mask]
+        y_mask = y_float[mask]
+        if np.all(x_mask == x_mask[0]):
+            scores.append((col, 0.0))
+            continue
+        corr = np.corrcoef(x_mask, y_mask)[0, 1]
+        if np.isnan(corr):
+            corr = 0.0
+        scores.append((col, abs(corr)))
+
+    scores.sort(key=lambda t: t[1], reverse=True)
+    selected = [name for name, _ in scores[:k]]
+    return selected, scores
+
+
+# =============================================================================
+# Cognitive Feature Definitions (from HCP)
+# =============================================================================
+
+# Standard cognitive feature set used in HCP analyses
+HCP_COGNITIVE_FEATURES = [
+    # Fluid intelligence
+    "PMAT24_A_CR",
+    "PMAT24_A_SI",
+    "PMAT24_A_RTCR",
+    # Reading & vocabulary
+    "ReadEng_Unadj",
+    "ReadEng_AgeAdj",
+    "PicVocab_Unadj",
+    "PicVocab_AgeAdj",
+    # Immediate & delayed word recall
+    "IWRD_TOT",
+    "IWRD_RTC",
+    # Processing speed
+    "ProcSpeed_Unadj",
+    "ProcSpeed_AgeAdj",
+    # Delay discounting
+    "DDisc_SV_1mo_200",
+    "DDisc_SV_6mo_200",
+    "DDisc_SV_1yr_200",
+    "DDisc_SV_3yr_200",
+    "DDisc_SV_5yr_200",
+    "DDisc_SV_10yr_200",
+    "DDisc_SV_6mo_40K",
+    "DDisc_SV_1yr_40K",
+    "DDisc_SV_3yr_40K",
+    "DDisc_SV_5yr_40K",
+    "DDisc_SV_10yr_40K",
+    "DDisc_AUC_200",
+    "DDisc_AUC_40K",
+    # Visuospatial / mental rotation
+    "VSPLOT_TC",
+    "VSPLOT_CRTE",
+    "VSPLOT_OFF",
+    # Sustained attention (SCPT)
+    "SCPT_TP",
+    "SCPT_TN",
+    "SCPT_FP",
+    "SCPT_FN",
+    "SCPT_TPRT",
+    "SCPT_SEN",
+    "SCPT_SPEC",
+    "SCPT_LRNR",
+    # Working memory / list sorting
+    "ListSort_Unadj",
+    "ListSort_AgeAdj",
+    # Episodic memory (picture sequence)
+    "PicSeq_Unadj",
+    "PicSeq_AgeAdj",
+    # Socioeconomic covariates
+    "SSAGA_Income",
+    "SSAGA_Educ",
+    # Executive function & attention
+    "CardSort_Unadj",
+    "CardSort_AgeAdj",
+    "Flanker_Unadj",
+    "Flanker_AgeAdj",
+]
+
+
+def get_cognitive_features(df: pd.DataFrame, include_age: bool = True) -> list[str]:
+    """Get available cognitive features from a DataFrame.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Data with potential cognitive feature columns.
+    include_age : bool, default=True
+        Whether to include age as a feature.
+
+    Returns
+    -------
+    features : list of str
+        List of cognitive feature column names present in df.
+    """
+    candidates = list(HCP_COGNITIVE_FEATURES)
+
+    if include_age:
+        if "Age_in_Yrs" in df.columns:
+            candidates = ["Age_in_Yrs"] + candidates
+        elif "Age" in df.columns:
+            candidates = ["Age"] + candidates
+
+    return [c for c in candidates if c in df.columns]
+
+
+def get_connectome_features(df: pd.DataFrame, variant: str) -> list[str]:
+    """Get connectome feature columns for a given representation.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Data with connectome feature columns.
+    variant : str
+        One of 'tnpca', 'vae', 'pca' indicating the feature type.
+
+    Returns
+    -------
+    features : list of str
+        List of connectome feature column names.
+    """
+    if variant == "tnpca":
+        return [c for c in df.columns if c.startswith("Struct_PC") or c.startswith("Func_PC")]
+    elif variant == "vae":
+        return [
+            c for c in df.columns if c.startswith("VAE_Struct_LD") or c.startswith("VAE_Func_LD")
+        ]
+    elif variant == "pca":
+        return [
+            c for c in df.columns if c.startswith("Raw_Struct_PC") or c.startswith("Raw_Func_PC")
+        ]
+    else:
+        raise ValueError(f"Unknown variant: {variant}. Use 'tnpca', 'vae', or 'pca'.")

@@ -16,7 +16,11 @@ A Python package for analyzing brain structural and functional connectomes from 
 - **Statistical Analysis**: Sexual dimorphism analysis with effect sizes and FDR correction
 - **Mediation Analysis**: Test brain network mediation of cognitive-alcohol relationships by sex
 - **Machine Learning**: Random Forest, XGBoost, and EBM (Explainable Boosting) classifiers
-- **Visualization**: Publication-ready plots for connectome analysis
+  - Cross-validation with hyperparameter tuning (GridSearchCV)
+  - Class imbalance handling via sample weights
+  - Comprehensive metrics (AUC, balanced accuracy, precision, recall, F1)
+- **Alcohol Classification**: Sex-stratified prediction of alcohol use disorder from brain + cognitive features
+- **Visualization**: Publication-ready plots for connectome analysis (ROC curves, feature importance)
 - **Reproducibility**: Docker container and automated pipelines
 
 ## One-Click Demo (No Setup Required)
@@ -92,6 +96,12 @@ python Runners/run_pipeline.py --skip-vae --skip-plots
 | 6 | Mediation Analysis | `mediation_results.csv` |
 | 7 | Visualization | `output/plots/*.png` |
 
+Additional standalone analyses:
+| Analysis | Runner | Output |
+|----------|--------|--------|
+| Alcohol Classification | `run_alcohol_analysis.py` | `output/alcohol_analysis/` |
+| Mediation (Extended) | `run_mediation_hcp.py` | `output/mediation_*.csv` |
+
 ### Mediation Analysis on HCP Data
 
 For a comprehensive sex-stratified mediation analysis:
@@ -108,11 +118,37 @@ python Runners/run_mediation_hcp.py
 # - output/MEDIATION_ANALYSIS_RESULTS.pdf (report)
 ```
 
+### Alcohol Use Disorder Classification
+
+Train Random Forest and Explainable Boosting Machine (EBM) classifiers to predict alcohol use disorder from brain connectome and cognitive features, stratified by sex:
+
+```bash
+# Run full analysis with all variants and models
+python Runners/run_alcohol_analysis.py
+
+# Run with specific variants only
+python Runners/run_alcohol_analysis.py --variants tnpca
+
+# Run Random Forest only
+python Runners/run_alcohol_analysis.py --model-types rf
+
+# Outputs:
+# - output/alcohol_analysis/alcohol_classification_summary.csv
+# - output/alcohol_analysis/models/ (trained model files)
+# - output/alcohol_analysis/plots/roc/ (ROC curves)
+# - output/alcohol_analysis/plots/importance/ (feature importance)
+```
+
 ## Python API
 
 ```python
-from brain_connectome import ConnectomeDataLoader, DimorphismAnalysis
-from brain_connectome.models import ConnectomeRandomForest
+from brain_connectome import (
+    ConnectomeDataLoader,
+    DimorphismAnalysis,
+    ConnectomeRandomForest,
+    ConnectomeEBM,
+)
+from brain_connectome.models import get_cognitive_features, get_connectome_features
 
 # Load data
 loader = ConnectomeDataLoader("data/")
@@ -126,13 +162,18 @@ results = analysis.analyze(feature_columns=features)
 # Get significant features
 print(analysis.get_top_features(10))
 
-# Train a classifier
+# Train a classifier with CV and class imbalance handling
 X = data[features].values
 y = (data["Gender"] == "M").astype(int).values
 
 clf = ConnectomeRandomForest()
-clf.fit(X, y, feature_names=features)
+metrics = clf.fit_with_cv(X, y, feature_names=features, handle_imbalance=True)
+print(f"Test AUC: {metrics['test_auc']:.3f}")
 print(f"Top biomarkers:\n{clf.get_top_features(5)}")
+
+# Get feature sets for analysis
+cog_features = get_cognitive_features(data)  # HCP cognitive measures
+conn_features = get_connectome_features(data, "tnpca")  # TNPCA connectome features
 ```
 
 ### Mediation Analysis

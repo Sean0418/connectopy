@@ -21,7 +21,7 @@ The pipeline includes:
     2. PCA Analysis - Dimensionality reduction on raw connectomes
     3. VAE Analysis - Variational autoencoder for nonlinear embeddings
     4. Dimorphism Analysis - Sexual dimorphism statistical tests
-    5. ML Classification - Train gender classifier
+    5. ML Classification - Alcohol use disorder prediction (RF + EBM, sex-stratified)
     6. Mediation Analysis - Brain network mediation of cognitive-alcohol relationships
     7. Visualization - Generate analysis plots
 """
@@ -258,86 +258,188 @@ def run_dimorphism_analysis(data, output_dir: Path):
 
 
 def run_ml_classification(data, output_dir: Path):
-    """Run ML classification for gender prediction."""
+    """Run ML classification for alcohol use disorder prediction.
+
+    Uses Random Forest and EBM with:
+    - Cognitive + connectome features
+    - Sex stratification (separate models for M/F)
+    - fit_with_cv() for GridSearchCV and class imbalance handling
+    - Comprehensive metrics (AUC, balanced accuracy, etc.)
+    """
     import numpy as np
-    from sklearn.model_selection import train_test_split
+    import pandas as pd
 
-    from brain_connectome.models import ConnectomeEBM, ConnectomeRandomForest
-
-    ml_output = output_dir / "ml_results.csv"
-    ebm_output = output_dir / "ebm_results.csv"
-
-    # Prepare features
-    struct_pcs = [c for c in data.columns if c.startswith("Struct_PC")]
-    func_pcs = [c for c in data.columns if c.startswith("Func_PC")]
-    feature_cols = struct_pcs + func_pcs
-
-    if not feature_cols:
-        print("  No PC columns found for ML classification")
-        return None
-
-    X = data[feature_cols].values
-    y = (data["Gender"] == "M").astype(int).values
-
-    # Remove any rows with NaN
-    valid_mask = ~np.isnan(X).any(axis=1)
-    X = X[valid_mask]
-    y = y[valid_mask]
-
-    # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42, stratify=y
+    from brain_connectome.models import (
+        ConnectomeEBM,
+        ConnectomeRandomForest,
+        get_cognitive_features,
+        get_connectome_features,
     )
 
-    print(f"Training set: {len(X_train)} subjects")
-    print(f"Test set: {len(X_test)} subjects")
+    # Create alcohol target from SSAGA_Alc_D4_Ab_Dx if not present
+    if "alc_y" not in data.columns:
+        if "SSAGA_Alc_D4_Ab_Dx" in data.columns:
+            # HCP coding: 1 = No diagnosis, 5 = Yes diagnosis
+            data = data.copy()
+            data["alc_y"] = np.where(data["SSAGA_Alc_D4_Ab_Dx"] == 5, 1, 0).astype(int)
+            print("Created alcohol target from SSAGA_Alc_D4_Ab_Dx")
+        else:
+            print("  ERROR: No alcohol target column found (need 'alc_y' or 'SSAGA_Alc_D4_Ab_Dx')")
+            return None
 
-    # Train Random Forest
-    print("\nTraining Random Forest classifier...")
-    clf = ConnectomeRandomForest(n_estimators=500, random_state=42)
-    clf.fit(X_train, y_train, feature_names=feature_cols)
+    # Check for Gender column
+    if "Gender" not in data.columns:
+        print("  ERROR: 'Gender' column not found for sex stratification")
+        return None
 
-    # Evaluate Random Forest
-    metrics = clf.evaluate(X_test, y_test)
-    print(f"Random Forest Accuracy: {metrics['accuracy']:.2%}")
+    # Get feature sets
+    cog_features = get_cognitive_features(data, include_age=True)
+    conn_features = get_connectome_features(data, "tnpca")
 
-    # Save feature importance
-    importance = clf.get_top_features(n=20)
-    importance.to_csv(ml_output, index=False)
-    print(f"Saved Random Forest feature importance to {ml_output}")
+    # Combine cognitive + connectome features
+    feature_cols = cog_features + conn_features
+    feature_cols = [c for c in feature_cols if c in data.columns]
 
-    print("\nTop 10 features for gender classification (Random Forest):")
-    print(importance.head(10).to_string(index=False))
+    if not feature_cols:
+        print("  No features found for ML classification")
+        return None
 
-    # Train EBM (Explainable Boosting Machine) - from yinyu branch
-    print("\n" + "-" * 40)
-    print("Training EBM (Explainable Boosting Machine)...")
-    try:
-        ebm = ConnectomeEBM(
-            learning_rate=0.01,
-            max_bins=32,
-            max_leaves=3,
-            interactions=0,  # No interactions for interpretability
-            random_state=42,
-        )
-        ebm.fit(X_train, y_train, feature_names=feature_cols)
+    n_cog = len(cog_features)
+    n_conn = len(conn_features)
+    print(f"Features: {n_cog} cognitive + {n_conn} connectome = {len(feature_cols)} total")
 
-        # Evaluate EBM
-        ebm_metrics = ebm.evaluate(X_test, y_test)
-        print(f"EBM Accuracy: {ebm_metrics['accuracy']:.2%}")
+    # Show target distribution
+    print("\nAlcohol target distribution:")
+    print(f"  0 (no diagnosis): {(data['alc_y'] == 0).sum()}")
+    print(f"  1 (alcohol abuse/dependence): {(data['alc_y'] == 1).sum()}")
 
-        # Save EBM feature importance
-        ebm_importance = ebm.get_top_features(n=20)
-        ebm_importance.to_csv(ebm_output, index=False)
-        print(f"Saved EBM feature importance to {ebm_output}")
+    all_results = []
 
-        print("\nTop 10 features for gender classification (EBM):")
-        print(ebm_importance.head(10).to_string(index=False))
-    except ImportError:
-        print("  interpret package not installed, skipping EBM analysis")
-        print("  Install with: pip install interpret")
+    # Train models stratified by sex
+    for sex in ["M", "F"]:
+        df_sex = data[data["Gender"] == sex].copy()
+        if df_sex.empty or len(df_sex) < 50:
+            print(f"\n  [WARN] Insufficient data for sex={sex}, skipping")
+            continue
 
-    return importance, metrics
+        # Prepare data
+        cols = feature_cols + ["alc_y"]
+        sub = df_sex[cols].dropna()
+
+        if len(sub) < 50:
+            print(f"\n  [WARN] Insufficient non-NA data for sex={sex}, skipping")
+            continue
+
+        X = sub[feature_cols].values
+        y = sub["alc_y"].astype(int).values
+
+        if len(np.unique(y)) < 2:
+            print(f"\n  [WARN] Only one class for sex={sex}, skipping")
+            continue
+
+        pos_rate = y.mean()
+        print(f"\n{'='*50}")
+        print(f"Training models for Sex={sex}")
+        print(f"{'='*50}")
+        print(f"  Samples: {len(y)}, Positive rate: {pos_rate:.3f}")
+
+        # Train Random Forest with CV
+        print("\n  Training Random Forest with GridSearchCV...")
+        rf = ConnectomeRandomForest(n_estimators=500, class_weight="balanced", random_state=42)
+        try:
+            rf_metrics = rf.fit_with_cv(
+                X,
+                y,
+                feature_names=feature_cols,
+                handle_imbalance=True,
+                param_grid={
+                    "rf__n_estimators": [300, 500],
+                    "rf__max_depth": [None, 10],
+                    "rf__min_samples_leaf": [1, 5],
+                },
+            )
+            rf_metrics["sex"] = sex
+            rf_metrics["model"] = "RF"
+            all_results.append(rf_metrics)
+            print(f"    CV AUC: {rf_metrics['cv_best_auc']:.3f}")
+            print(f"    Test AUC: {rf_metrics['test_auc']:.3f}")
+            print(f"    Test Balanced Accuracy: {rf_metrics['test_bal_acc']:.3f}")
+
+            # Save RF feature importance
+            rf_imp = rf.get_top_features(n=20)
+            rf_imp.to_csv(output_dir / f"rf_importance_{sex}.csv", index=False)
+
+        except Exception as e:
+            print(f"    [ERROR] RF training failed: {e}")
+
+        # Train EBM with CV
+        print("\n  Training EBM with GridSearchCV...")
+        try:
+            ebm = ConnectomeEBM(
+                max_bins=32,
+                learning_rate=0.01,
+                max_leaves=3,
+                interactions=0,
+                random_state=42,
+            )
+            ebm_metrics = ebm.fit_with_cv(
+                X,
+                y,
+                feature_names=feature_cols,
+                handle_imbalance=True,
+                param_grid={
+                    "max_leaves": [2, 3],
+                    "min_samples_leaf": [20, 50],
+                },
+            )
+            ebm_metrics["sex"] = sex
+            ebm_metrics["model"] = "EBM"
+            all_results.append(ebm_metrics)
+            print(f"    CV AUC: {ebm_metrics['cv_best_auc']:.3f}")
+            print(f"    Test AUC: {ebm_metrics['test_auc']:.3f}")
+            print(f"    Test Balanced Accuracy: {ebm_metrics['test_bal_acc']:.3f}")
+
+            # Save EBM feature importance
+            ebm_imp = ebm.get_top_features(n=20)
+            ebm_imp.to_csv(output_dir / f"ebm_importance_{sex}.csv", index=False)
+
+        except ImportError:
+            print("    [WARN] interpret package not installed, skipping EBM")
+        except Exception as e:
+            print(f"    [ERROR] EBM training failed: {e}")
+
+    # Save summary results
+    if all_results:
+        results_df = pd.DataFrame(all_results)
+        # Reorder columns
+        first_cols = [
+            "model",
+            "sex",
+            "n_train",
+            "n_test",
+            "cv_best_auc",
+            "test_auc",
+            "test_bal_acc",
+        ]
+        other_cols = [c for c in results_df.columns if c not in first_cols]
+        col_order = [c for c in first_cols if c in results_df.columns] + other_cols
+        results_df = results_df[col_order]  # type: ignore[assignment]
+
+        ml_output = output_dir / "alcohol_classification_results.csv"
+        results_df.to_csv(ml_output, index=False)
+        print(f"\nSaved classification results to {ml_output}")
+
+        # Print summary
+        print("\n" + "=" * 60)
+        print("ALCOHOL CLASSIFICATION SUMMARY")
+        print("=" * 60)
+        summary = results_df[["model", "sex", "cv_best_auc", "test_auc", "test_bal_acc"]]
+        print(summary.to_string(index=False))
+
+        return results_df, all_results
+    else:
+        print("\n  No models were successfully trained.")
+        return None
 
 
 def run_mediation_analysis(data_dir: Path, output_dir: Path) -> "dict | None":
@@ -450,7 +552,7 @@ def run_mediation_analysis(data_dir: Path, output_dir: Path) -> "dict | None":
     return results.to_dict()
 
 
-def generate_plots(data, output_dir: Path, dimorphism_results=None, ml_results=None):
+def generate_plots(data, output_dir: Path, dimorphism_results=None):
     """Generate visualization plots."""
     import matplotlib
 
@@ -528,17 +630,36 @@ def generate_plots(data, output_dir: Path, dimorphism_results=None, ml_results=N
         fig.savefig(plots_dir / "dimorphism_effect_sizes.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
 
-    # 3. ML feature importance
-    if ml_results is not None:
-        importance_df, _ = ml_results
-        print("  Generating feature importance plot...")
-        fig, ax = plot_feature_importance(
-            importance_df,
-            n_features=15,
-            title="Random Forest: Top 15 Features for Gender Classification",
-        )
-        fig.savefig(plots_dir / "ml_feature_importance.png", dpi=150, bbox_inches="tight")
-        plt.close(fig)
+    # 3. ML feature importance (from alcohol classification)
+    # Check for sex-stratified importance files
+    for sex in ["M", "F"]:
+        rf_imp_path = output_dir / f"rf_importance_{sex}.csv"
+        if rf_imp_path.exists():
+            print(f"  Generating RF feature importance plot for {sex}...")
+            importance_df = pd.read_csv(rf_imp_path)
+            fig, ax = plot_feature_importance(
+                importance_df,
+                n_features=15,
+                title=f"Random Forest: Top 15 Features ({sex}) - Alcohol Classification",
+            )
+            fig.savefig(
+                plots_dir / f"rf_feature_importance_{sex}.png", dpi=150, bbox_inches="tight"
+            )
+            plt.close(fig)
+
+        ebm_imp_path = output_dir / f"ebm_importance_{sex}.csv"
+        if ebm_imp_path.exists():
+            print(f"  Generating EBM feature importance plot for {sex}...")
+            importance_df = pd.read_csv(ebm_imp_path)
+            fig, ax = plot_feature_importance(
+                importance_df,
+                n_features=15,
+                title=f"EBM: Top 15 Features ({sex}) - Alcohol Classification",
+            )
+            fig.savefig(
+                plots_dir / f"ebm_feature_importance_{sex}.png", dpi=150, bbox_inches="tight"
+            )
+            plt.close(fig)
 
     # 4. PCA variance plot (if available)
     variance_path = output_dir / "pca_variance.csv"
@@ -674,20 +795,20 @@ def run_pipeline(
     else:
         print("\nStep 4: Skipping Dimorphism Analysis (--skip-dimorphism)")
 
-    # Step 5: ML Classification
-    ml_results = None
+    # Step 5: ML Classification (Alcohol Use Disorder)
     if not skip_ml:
-        print("\nStep 5: Machine Learning Classification")
+        print("\nStep 5: Alcohol Use Disorder Classification")
         print("-" * 40)
-        ml_output = output_dir / "ml_results.csv"
+        ml_output = output_dir / "alcohol_classification_results.csv"
         if ml_output.exists():
-            print(f"ML results already exist at {ml_output}")
-            importance = pd.read_csv(ml_output)
-            ml_results = (importance, {"accuracy": "cached"})
-            print("\nTop 10 features for gender classification:")
-            print(importance.head(10).to_string(index=False))
+            print(f"Classification results already exist at {ml_output}")
+            results_df = pd.read_csv(ml_output)
+            print("\nSummary of existing results:")
+            summary_cols = ["model", "sex", "cv_best_auc", "test_auc", "test_bal_acc"]
+            summary_cols = [c for c in summary_cols if c in results_df.columns]
+            print(results_df[summary_cols].to_string(index=False))
         else:
-            ml_results = run_ml_classification(data, output_dir)
+            run_ml_classification(data, output_dir)
     else:
         print("\nStep 5: Skipping ML Classification (--skip-ml)")
 
@@ -710,7 +831,7 @@ def run_pipeline(
     if not skip_plots:
         print("\nStep 7: Generating Visualizations")
         print("-" * 40)
-        generate_plots(data, output_dir, dimorphism_results, ml_results)
+        generate_plots(data, output_dir, dimorphism_results)
     else:
         print("\nStep 7: Skipping Visualization (--skip-plots)")
 
@@ -722,7 +843,9 @@ def run_pipeline(
     print("  - pca_variance.csv, pca_scores.csv (if PCA ran)")
     print("  - vae_latent.csv, vae_training_history.csv (if VAE ran)")
     print("  - dimorphism_results.csv (if dimorphism analysis ran)")
-    print("  - ml_results.csv, ebm_results.csv (if ML classification ran)")
+    print("  - alcohol_classification_results.csv (if ML ran)")
+    print("  - rf_importance_M.csv, rf_importance_F.csv (RF feature importance by sex)")
+    print("  - ebm_importance_M.csv, ebm_importance_F.csv (EBM feature importance by sex)")
     print("  - mediation_results.csv (if mediation analysis ran)")
     print("  - plots/ (if visualization ran)")
 
