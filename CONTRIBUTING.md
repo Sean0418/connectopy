@@ -7,8 +7,8 @@ Thank you for your interest in contributing to Connectopy! We welcome contributi
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Brain-Connectome.git
-cd Brain-Connectome
+git clone https://github.com/YOUR_USERNAME/connectopy.git
+cd connectopy
 ```
 
 ### 2. Set Up Development Environment

@@ -1,8 +1,8 @@
 # Connectopy
 
-[![CI](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml)
-[![Docker](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Sean0418/Brain-Connectome/blob/main/notebooks/colab_demo.ipynb)
+[![CI](https://github.com/Sean0418/connectopy/actions/workflows/ci.yml/badge.svg)](https://github.com/Sean0418/connectopy/actions/workflows/ci.yml)
+[![Docker](https://github.com/Sean0418/connectopy/actions/workflows/docker.yml/badge.svg)](https://github.com/Sean0418/connectopy/actions/workflows/docker.yml)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Sean0418/connectopy/blob/main/notebooks/colab_demo.ipynb)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -27,7 +27,7 @@ A Python package for analyzing brain structural and functional connectomes from 
 
 Try the analysis instantly in Google Colab - no installation needed!
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Sean0418/Brain-Connectome/blob/main/notebooks/colab_demo.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Sean0418/connectopy/blob/main/notebooks/colab_demo.ipynb)
 
 Just click the badge above and then **Runtime → Run all** to execute the entire analysis.
 
@@ -57,8 +57,8 @@ docker run ghcr.io/sean0418/connectopy:latest --help
 
 ```bash
 # Clone the repository
-git clone https://github.com/Sean0418/Brain-Connectome.git
-cd Brain-Connectome
+git clone https://github.com/Sean0418/connectopy.git
+cd connectopy
 
 # Create virtual environment
 python -m venv .venv
@@ -202,7 +202,7 @@ print(f"Sex difference significant: {result.diff_significant}")
 ## Project Structure
 
 ```
-Brain-Connectome/
+connectopy/
 ├── connectopy/                 # Python package
 │   ├── data/                   # Data loading (HCPLoader, preprocessing)
 │   ├── analysis/               # PCA, VAE, dimorphism, mediation analysis

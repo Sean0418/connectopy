@@ -17,8 +17,8 @@ Clone the repository and install in development mode:
 
 .. code-block:: bash
 
-   git clone https://github.com/Sean0418/Brain-Connectome.git
-   cd Brain-Connectome
+   git clone https://github.com/Sean0418/connectopy.git
+   cd connectopy
    pip install -e ".[dev,docs]"
 
 Dependencies Only
@@ -56,4 +56,3 @@ Building Documentation
    make html
 
 The documentation will be available at ``docs/_build/html/index.html``.
-

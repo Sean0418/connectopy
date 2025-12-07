@@ -60,9 +60,9 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Sean0418/Brain-Connectome"
+Homepage = "https://github.com/Sean0418/connectopy"
 Documentation = "https://connectopy.readthedocs.io"
-Repository = "https://github.com/Sean0418/Brain-Connectome"
+Repository = "https://github.com/Sean0418/connectopy"
 
 [project.scripts]
 connectopy = "connectopy.cli:main"

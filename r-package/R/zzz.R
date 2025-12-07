@@ -16,7 +16,7 @@ get_connectopy <- function() {
     if (!reticulate::py_module_available("connectopy")) {
       stop(
         "Python package 'connectopy' is not installed.\n",
-        "Install it with: pip install -e /path/to/Brain-Connectome",
+        "Install it with: pip install -e /path/to/connectopy",
         call. = FALSE
       )
     }

@@ -43,7 +43,7 @@ FROM python:3.11-slim as runtime
 
 LABEL org.opencontainers.image.title="Connectopy Analysis"
 LABEL org.opencontainers.image.description="Reproducible connectomics analysis pipeline for brain connectivity data"
-LABEL org.opencontainers.image.source="https://github.com/Sean0418/Brain-Connectome"
+LABEL org.opencontainers.image.source="https://github.com/Sean0418/connectopy"
 LABEL org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app

@@ -7,7 +7,7 @@ R interface to the `connectopy` Python package using `reticulate`.
 ### 1. Install the Python package first
 
 ```bash
-cd /path/to/Brain-Connectome
+cd /path/to/connectopy
 pip install -e .
 ```
 

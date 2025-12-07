@@ -10,8 +10,8 @@ This document outlines all steps taken to ensure the Brain Connectome project is
 
 ```bash
 # Clone repository
-git clone https://github.com/Sean0418/Brain-Connectome.git
-cd Brain-Connectome
+git clone https://github.com/Sean0418/connectopy.git
+cd connectopy
 
 # Run complete pipeline (auto-creates venv, installs deps)
 python Runners/run_pipeline.py
@@ -122,7 +122,7 @@ python Runners/run_pipeline.py --skip-ml          # Skip ML classification
 ### 4.1 Package Structure
 
 ```
-Brain-Connectome/
+connectopy/
 ├── connectopy/           # Python package
 │   ├── data/                   # Data loading (loader.py, preprocessing.py)
 │   ├── analysis/               # Analysis (pca.py, vae.py, dimorphism.py)
