@@ -467,7 +467,7 @@ class ConnectomeEBM:
         """Initialize the classifier."""
         if not EBM_AVAILABLE:
             raise ImportError(
-                "interpret is required for ConnectomeEBM. " "Install with: pip install interpret"
+                "interpret is required for ConnectomeEBM. Install with: pip install interpret"
             )
 
         self.model = ExplainableBoostingClassifier(
