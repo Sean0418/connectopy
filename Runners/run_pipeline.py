@@ -558,7 +558,7 @@ def run_mediation_analysis(data_dir: Path, output_dir: Path) -> "dict | None":
             print(f"    Male: {row['male_indirect']:.4f}, Female: {row['female_indirect']:.4f}")
             print(f"    Difference: {row['sex_difference']:.4f}")
 
-    return results.to_dict()
+    return dict(results.to_dict())
 
 
 def generate_plots(data, output_dir: Path, dimorphism_results=None):
