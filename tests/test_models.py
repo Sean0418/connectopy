@@ -3,9 +3,10 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 from connectopy.models.classifiers import (
+    ConnectomeLogistic,
     ConnectomeRandomForest,
+    ConnectomeSVM,
     get_cognitive_features,
     get_connectome_features,
     select_top_features_by_correlation,
@@ -13,9 +14,8 @@ from connectopy.models.classifiers import (
 
 # Check if interpret package is installed (required for EBM)
 try:
-    from interpret.glassbox import ExplainableBoostingClassifier  # noqa: F401
-
     from connectopy.models.classifiers import ConnectomeEBM
+    from interpret.glassbox import ExplainableBoostingClassifier  # noqa: F401
 
     EBM_AVAILABLE = True
 except ImportError:
@@ -224,6 +224,106 @@ class TestConnectomeEBM:
         assert explanation is not None
 
 
+class TestConnectomeSVM:
+    """Tests for ConnectomeSVM class."""
+
+    @pytest.fixture
+    def binary_classification_data(self):
+        """Generate binary classification data."""
+        np.random.seed(42)
+        n_samples = 100
+        n_features = 20
+
+        X = np.random.randn(n_samples, n_features)
+        y = (X[:, 0] + X[:, 1] > 0).astype(int)
+        feature_names = [f"Feature_{i}" for i in range(n_features)]
+
+        return X, y, feature_names
+
+    def test_fit(self, binary_classification_data):
+        """Test SVM fitting."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeSVM(C=1.0, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        assert clf.feature_names is not None
+        assert clf._scaler is not None
+
+    def test_predict(self, binary_classification_data):
+        """Test SVM prediction."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeSVM(C=1.0, random_state=42)
+        clf.fit(X[:80], y[:80], feature_names=feature_names)
+
+        predictions = clf.predict(X[80:])
+        assert len(predictions) == 20
+        assert set(predictions).issubset({0, 1})
+
+    def test_predict_proba(self, binary_classification_data):
+        """Test SVM probability prediction."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeSVM(C=1.0, random_state=42)
+        clf.fit(X[:80], y[:80], feature_names=feature_names)
+
+        proba = clf.predict_proba(X[80:])
+        assert proba.shape == (20, 2)
+        assert np.allclose(proba.sum(axis=1), 1.0)
+
+
+class TestConnectomeLogistic:
+    """Tests for ConnectomeLogistic class."""
+
+    @pytest.fixture
+    def binary_classification_data(self):
+        """Generate binary classification data."""
+        np.random.seed(42)
+        n_samples = 100
+        n_features = 20
+
+        X = np.random.randn(n_samples, n_features)
+        y = (X[:, 0] + X[:, 1] > 0).astype(int)
+        feature_names = [f"Feature_{i}" for i in range(n_features)]
+
+        return X, y, feature_names
+
+    def test_fit(self, binary_classification_data):
+        """Test Logistic fitting."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeLogistic(C=1.0, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        assert clf.feature_names is not None
+        assert clf.feature_importances_ is not None
+
+    def test_predict(self, binary_classification_data):
+        """Test Logistic prediction."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeLogistic(C=1.0, random_state=42)
+        clf.fit(X[:80], y[:80], feature_names=feature_names)
+
+        predictions = clf.predict(X[80:])
+        assert len(predictions) == 20
+        assert set(predictions).issubset({0, 1})
+
+    def test_get_coefficients(self, binary_classification_data):
+        """Test Logistic coefficient extraction."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeLogistic(C=1.0, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        coefs = clf.get_coefficients()
+        assert "Feature" in coefs.columns
+        assert "Coefficient" in coefs.columns
+        assert "AbsCoef" in coefs.columns
+        assert len(coefs) == 20
+
+
 class TestFitWithCV:
     """Tests for fit_with_cv method on classifiers."""
 
@@ -288,6 +388,58 @@ class TestFitWithCV:
         assert "cv_best_auc" in metrics
         assert "test_auc" in metrics
         assert "n_features_used" in metrics
+
+        # Check ROC data is stored
+        roc_data = clf.get_roc_data()
+        assert "fpr" in roc_data
+        assert "tpr" in roc_data
+
+    def test_svm_fit_with_cv(self, imbalanced_classification_data):
+        """Test SVM fit_with_cv method."""
+        X, y, feature_names = imbalanced_classification_data
+
+        clf = ConnectomeSVM(random_state=42)
+        metrics = clf.fit_with_cv(
+            X,
+            y,
+            feature_names=feature_names,
+            param_grid={"svm__C": [1], "svm__kernel": ["rbf"]},
+            select_k_best=10,
+            optimize_threshold=True,
+        )
+
+        # Check metrics are returned
+        assert "cv_best_auc" in metrics
+        assert "test_auc" in metrics
+        assert "optimal_threshold" in metrics
+        assert "resampling_strategy" in metrics
+
+        # Check ROC data is stored
+        roc_data = clf.get_roc_data()
+        assert "fpr" in roc_data
+        assert "tpr" in roc_data
+
+    def test_logistic_fit_with_cv(self, imbalanced_classification_data):
+        """Test Logistic fit_with_cv method."""
+        X, y, feature_names = imbalanced_classification_data
+
+        clf = ConnectomeLogistic(random_state=42)
+        metrics = clf.fit_with_cv(
+            X,
+            y,
+            feature_names=feature_names,
+            param_grid=[
+                {"logistic__C": [1], "logistic__penalty": ["l2"], "logistic__solver": ["lbfgs"]}
+            ],
+            select_k_best=10,
+            optimize_threshold=True,
+        )
+
+        # Check metrics are returned
+        assert "cv_best_auc" in metrics
+        assert "test_auc" in metrics
+        assert "n_nonzero_coefs" in metrics
+        assert "optimal_threshold" in metrics
 
         # Check ROC data is stored
         roc_data = clf.get_roc_data()

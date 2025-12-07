@@ -15,9 +15,12 @@ A Python package for analyzing brain structural and functional connectomes from 
 - **Dimensionality Reduction**: PCA and VAE for connectome feature extraction
 - **Statistical Analysis**: Sexual dimorphism analysis with effect sizes and FDR correction
 - **Mediation Analysis**: Test brain network mediation of cognitive-alcohol relationships by sex
-- **Machine Learning**: Random Forest, XGBoost, and EBM (Explainable Boosting) classifiers
+- **Machine Learning**: Multiple classifier options with unified interface
+  - Random Forest, XGBoost, EBM (Explainable Boosting), SVM, Logistic Regression
   - Cross-validation with hyperparameter tuning (GridSearchCV)
-  - Class imbalance handling via sample weights
+  - Class imbalance handling (sample weights, SMOTE, undersampling)
+  - Feature selection (SelectKBest)
+  - Optimal threshold finding (F1-based)
   - Comprehensive metrics (AUC, balanced accuracy, precision, recall, F1)
 - **Alcohol Classification**: Sex-stratified prediction of alcohol use disorder from brain + cognitive features
 - **Visualization**: Publication-ready plots for connectome analysis (ROC curves, feature importance)
