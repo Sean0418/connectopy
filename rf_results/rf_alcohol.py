@@ -6,12 +6,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV
-from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, accuracy_score, roc_curve
 
 import joblib
+
+# NEW: SMOTE + imblearn pipeline
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
 
 
 # -------------------------------------------------------------------
@@ -136,7 +139,7 @@ def get_connectome_features(df: pd.DataFrame, base_variant: str) -> list:
 
 
 # -------------------------------------------------------------------
-# 2. Training function: RF + CV + regularization + class imbalance
+# 2. Training function: RF + CV + regularization + SMOTE
 # -------------------------------------------------------------------
 
 def train_rf_for_variant(
@@ -153,7 +156,7 @@ def train_rf_for_variant(
       - overfitting: max_depth, min_samples_leaf, max_features regularize tree size.
       - hyper-parameter tuning: GridSearchCV over a small grid.
       - cross-validation: stratified 5-fold CV on training split only.
-      - class imbalance: inverse-frequency sample_weight + class_weight='balanced'.
+      - class imbalance: handled by SMOTE oversampling within the CV/pipeline.
     """
     cols = feature_names + ["alc_y"]
     sub = df_sex[cols].dropna().copy()
@@ -180,36 +183,23 @@ def train_rf_for_variant(
     print("  train size:", len(y_train), "test size:", len(y_test))
     print("  positive rate (train):", y_train.mean().round(3))
 
-    # --- class imbalance handling: inverse-frequency sample_weight + class_weight ---
-    class_counts = np.bincount(y_train)
-    if len(class_counts) < 2 or class_counts[1] == 0:
-        raise ValueError("No positive examples in training set.")
-
-    n_total = len(y_train)
-    w_neg = n_total / (2.0 * class_counts[0])
-    w_pos = n_total / (2.0 * class_counts[1])
-    sample_weight_train = np.where(y_train == 1, w_pos, w_neg)
-
-    print(f"  class counts: 0 -> {class_counts[0]}, 1 -> {class_counts[1]}")
-    print(f"  using sample weights: w_neg={w_neg:.3f}, w_pos={w_pos:.3f}")
-
-    # --- pipeline: impute missing -> RF ---
+    # --- pipeline: impute missing -> SMOTE -> RF ---
     rf = RandomForestClassifier(
         n_estimators=500,           # tuned below; this is just default
-        class_weight="balanced",   # handle imbalance at the estimator level
         random_state=RANDOM_STATE,
         n_jobs=-1,
     )
 
-    pipe = Pipeline(
+    # imputer only uses fit/transform; SMOTE uses fit_resample
+    imb_pipe = ImbPipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),
+            ("smote", SMOTE(random_state=RANDOM_STATE)),
             ("rf", rf),
         ]
     )
 
     # --- hyper-parameter grid (regularization controls) ---
-    # max_depth, min_samples_leaf, max_features are the main regularizers
     param_grid = {
         "rf__n_estimators": [300, 500],
         "rf__max_depth": [None, 10, 20],
@@ -222,7 +212,7 @@ def train_rf_for_variant(
     )
 
     grid = GridSearchCV(
-        estimator=pipe,
+        estimator=imb_pipe,
         param_grid=param_grid,
         scoring="roc_auc",
         cv=cv,
@@ -230,8 +220,8 @@ def train_rf_for_variant(
         verbose=1,
     )
 
-    # fit with sample_weight for imbalance
-    grid.fit(X_train, y_train, rf__sample_weight=sample_weight_train)
+    # Fit: SMOTE is applied inside each CV fold and on full training during final fit
+    grid.fit(X_train, y_train)
 
     best_model = grid.best_estimator_
     best_params = grid.best_params_
@@ -240,7 +230,7 @@ def train_rf_for_variant(
     print("  best params:", best_params)
     print("  best CV AUC:", round(cv_best_auc, 3))
 
-    # --- evaluate on train/test ---
+    # --- evaluate on train/test (no SMOTE at predict time) ---
     y_train_proba = best_model.predict_proba(X_train)[:, 1]
     y_test_proba = best_model.predict_proba(X_test)[:, 1]
 

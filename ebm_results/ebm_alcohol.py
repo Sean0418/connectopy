@@ -19,6 +19,11 @@ from sklearn.metrics import (
     f1_score,
 )
 
+# NEW: SMOTE + imblearn pipeline
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+
+
 # ---------------------------------------------------------
 # 0. Paths and configs
 # ---------------------------------------------------------
@@ -110,6 +115,23 @@ BASE_COG_CANDIDATES = [
 
 
 # ---------------------------------------------------------
+# Helper: connectome feature sets
+# ---------------------------------------------------------
+
+def get_connectome_features(df: pd.DataFrame, base_variant: str) -> list:
+    """Return connectome features for a given representation."""
+    if base_variant == "tnpca":
+        cols = [c for c in df.columns if c.startswith("Struct_PC") or c.startswith("Func_PC")]
+    elif base_variant == "vae":
+        cols = [c for c in df.columns if c.startswith("VAE_Struct_LD") or c.startswith("VAE_Func_LD")]
+    elif base_variant == "pca":
+        cols = [c for c in df.columns if c.startswith("Raw_Struct_PC") or c.startswith("Raw_Func_PC")]
+    else:
+        cols = []
+    return cols
+
+
+# ---------------------------------------------------------
 # Helper: univariate feature selection on non-cognitive features
 # ---------------------------------------------------------
 
@@ -143,15 +165,15 @@ def select_top_k_non_cog(X_train_df, y_train, non_cog_features, k=TOP_K_NONCOG):
 
 
 # ---------------------------------------------------------
-# 1. Training function for one sex + one variant
+# 1. Training function for one sex + one variant (with SMOTE)
 # ---------------------------------------------------------
 
 def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, variant_label):
     """
     Train an EBM classifier for a given sex + feature set with:
       - feature selection (keep all cognitive features + top K non-cog)
-      - CV tuning
-      - simple class-imbalance handling via sample weights
+      - CV tuning (Stratified K-fold)
+      - class imbalance handled by SMOTE oversampling in an imblearn pipeline
     """
     cols = feature_names_all + ["alc_y"]
     sub = df_sex[cols].dropna().copy()
@@ -159,7 +181,6 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
     if sub.empty:
         raise ValueError(f"No rows left after dropping NA for {sex_label}, {variant_label}.")
 
-    # Split into X (DataFrame) and y
     X_df = sub[feature_names_all]
     y = sub["alc_y"].values.astype(int)
 
@@ -176,6 +197,7 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
 
     print(f"\n=== Training EBM ({variant_label}) for sex={sex_label} ===")
     print("Train size:", len(y_train), "Test size:", len(y_test))
+    print("Train positive rate:", np.mean(y_train).round(3))
 
     # ---------------------------
     # Feature selection step
@@ -183,9 +205,12 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
     cog_features_present = [c for c in cog_features if c in X_train_df.columns]
     non_cog_features = [c for c in X_train_df.columns if c not in cog_features_present]
 
-    selected_non_cog, scores = select_top_k_non_cog(
-        X_train_df, y_train, non_cog_features, k=TOP_K_NONCOG
-    )
+    if len(non_cog_features) > 0:
+        selected_non_cog, scores = select_top_k_non_cog(
+            X_train_df, y_train, non_cog_features, k=TOP_K_NONCOG
+        )
+    else:
+        selected_non_cog = []
 
     selected_features = cog_features_present + selected_non_cog
     selected_features = list(dict.fromkeys(selected_features))  # dedupe, keep order
@@ -195,44 +220,35 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
     print(f"  Non-cognitive features selected: {len(selected_non_cog)}")
     print(f"  Total features used in EBM: {len(selected_features)}")
 
-    # Build numpy arrays for selected features
     X_train = X_train_df[selected_features].values
-    X_test = X_test_df[selected_features].values
+    X_test  = X_test_df[selected_features].values
 
     # ---------------------------
-    # EBM setup + class weighting
+    # EBM + SMOTE pipeline
     # ---------------------------
 
     base_model = ExplainableBoostingClassifier(random_state=42)
+    smote = SMOTE(random_state=42)
 
-    # Heavier regularization
+    imb_pipe = ImbPipeline([
+        ("smote", smote),
+        ("model", base_model),
+    ])
+
+    # EBM regularization grid
     param_grid = {
-        "max_leaves": [2, 3],
-        "min_samples_leaf": [50, 100],
-        "learning_rate": [0.01],
-        "outer_bags": [16],
-        "max_bins": [32],
-        "interactions": [0],  # pure additive model
+        "model__max_leaves": [2, 3],
+        "model__min_samples_leaf": [50, 100],
+        "model__learning_rate": [0.01],
+        "model__outer_bags": [16],
+        "model__max_bins": [32],
+        "model__interactions": [0],  # pure additive model
     }
-
-    # Class weights (inverse frequency on training split)
-    class_counts = np.bincount(y_train)
-    if len(class_counts) < 2 or class_counts[1] == 0:
-        raise ValueError(f"No positive examples in training set for {sex_label}, {variant_label}.")
-
-    n_total = len(y_train)
-    w_neg = n_total / (2.0 * class_counts[0])
-    w_pos = n_total / (2.0 * class_counts[1])
-
-    sample_weight_train = np.where(y_train == 1, w_pos, w_neg)
-
-    print(f"Class counts (train): 0 -> {class_counts[0]}, 1 -> {class_counts[1]}")
-    print(f"Using class weights: w_neg={w_neg:.3f}, w_pos={w_pos:.3f}")
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     grid = GridSearchCV(
-        estimator=base_model,
+        estimator=imb_pipe,
         param_grid=param_grid,
         scoring="roc_auc",
         cv=cv,
@@ -240,18 +256,18 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
         verbose=1,
     )
 
-    grid.fit(X_train, y_train, sample_weight=sample_weight_train)
+    grid.fit(X_train, y_train)
 
-    best_model = grid.best_estimator_
-    best_params = grid.best_params_
+    best_pipeline = grid.best_estimator_
+    best_params   = grid.best_params_
     cv_best_score = grid.best_score_
 
     print("Best params:", best_params)
     print("Best CV AUC:", cv_best_score)
 
     # Predictions
-    y_train_proba = best_model.predict_proba(X_train)[:, 1]
-    y_test_proba  = best_model.predict_proba(X_test)[:, 1]
+    y_train_proba = best_pipeline.predict_proba(X_train)[:, 1]
+    y_test_proba  = best_pipeline.predict_proba(X_test)[:, 1]
 
     train_auc = roc_auc_score(y_train, y_train_proba)
     test_auc  = roc_auc_score(y_test,  y_test_proba)
@@ -282,9 +298,9 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
         "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
     }
 
-    # Save model
+    # Save pipeline + feature list
     model_path = os.path.join(OUT_DIR, f"ebm_{sex_label}_{variant_label}.pkl")
-    joblib.dump({"model": best_model, "features": selected_features}, model_path)
+    joblib.dump({"model": best_pipeline, "features": selected_features}, model_path)
     print("Saved model (with feature list) to", model_path)
 
     # ROC curve (test)
@@ -310,17 +326,17 @@ def train_ebm_variant(df_sex, feature_names_all, cog_features, sex_label, varian
 
 
 # ---------------------------------------------------------
-# 2. Loop over variants and sexes
+# 2. Loop over base variants and sexes (full + cog_only + *_only)
 # ---------------------------------------------------------
 
 all_results = []
 
-for variant_label, filepath in variant_files.items():
+for base_variant, filepath in variant_files.items():
     if not os.path.exists(filepath):
-        print(f"WARNING: file for variant '{variant_label}' not found at {filepath}, skipping.")
+        print(f"WARNING: file for variant '{base_variant}' not found at {filepath}, skipping.")
         continue
 
-    print(f"\n========== Variant: {variant_label} ==========")
+    print(f"\n========== Base variant: {base_variant} ==========")
     df_var = pd.read_csv(filepath)
 
     # Basic sanity checks
@@ -328,7 +344,7 @@ for variant_label, filepath in variant_files.items():
         if col not in df_var.columns:
             raise ValueError(f"Column '{col}' missing in {filepath}")
 
-    # Build cognitive feature list for this variant
+    # Build cognitive feature list
     age_col = None
     if "Age_in_Yrs" in df_var.columns:
         age_col = "Age_in_Yrs"
@@ -340,29 +356,68 @@ for variant_label, filepath in variant_files.items():
     else:
         cog_candidates = BASE_COG_CANDIDATES
 
-    cog_features = [c for c in cog_candidates if c in df_var.columns]
+    cog_features_global = [c for c in cog_candidates if c in df_var.columns]
+    conn_features_global = get_connectome_features(df_var, base_variant)
 
-    # All predictors: everything except Subject/Gender/alc_y
-    drop_cols = {"Subject", "Gender", "alc_y"}
-    feature_names_all = [c for c in df_var.columns if c not in drop_cols]
+    # Feature sets: full + cog_only (only once) + *_only
+    feature_sets = {}
 
-    print(f"Total predictors before selection ({variant_label}): {len(feature_names_all)}")
-    print(f"Cognitive features present ({variant_label}): {len(cog_features)}")
+    # full cognitive + connectome for this base representation
+    feature_sets[base_variant] = [c for c in df_var.columns
+                                  if c not in {"Subject", "Gender", "alc_y"}]
+
+    # cog_only (only once off tnpca to mirror RF convention)
+    if base_variant == "tnpca":
+        feature_sets["cog_only"] = cog_features_global
+
+    # connectome-only variants
+    if base_variant == "tnpca":
+        feature_sets["tnpca_only"] = conn_features_global
+    elif base_variant == "vae":
+        feature_sets["vae_only"] = conn_features_global
+    elif base_variant == "pca":
+        feature_sets["pca_only"] = conn_features_global
+
+    print(f"  cognitive features: {len(cog_features_global)}")
+    print(f"  connectome features ({base_variant}): {len(conn_features_global)}")
 
     for sex in sex_values:
         df_sex = df_var[df_var["Gender"] == sex].copy()
         if df_sex.empty:
-            print(f"  Sex={sex}: no rows, skipping.")
+            print(f"  Sex={sex}: no rows, skipping all models for this sex.")
             continue
 
         pos_rate = df_sex["alc_y"].mean()
-        print(f"  Sex={sex}, variant={variant_label}, positive rate (alc_y=1): {pos_rate:.3f}")
+        print(f"\n  Sex={sex}, positive rate (alc_y=1): {pos_rate:.3f}")
 
-        try:
-            metrics = train_ebm_variant(df_sex, feature_names_all, cog_features, sex, variant_label)
-            all_results.append(metrics)
-        except ValueError as e:
-            print(f"  Skipping sex={sex}, variant={variant_label} due to error: {e}")
+        for variant_label, feat_cols in feature_sets.items():
+            if len(feat_cols) == 0:
+                print(f"    [WARN] variant={variant_label} has no features, skipping.")
+                continue
+
+            # Decide which cognitive feature list to pass for this variant
+            if variant_label == "cog_only":
+                feature_names_all = feat_cols
+                cog_features = cog_features_global
+            elif variant_label in {"tnpca_only", "vae_only", "pca_only"}:
+                feature_names_all = feat_cols
+                cog_features = []  # no cog features, all are non-cog
+            else:
+                # full models: all predictors; cognitive list as usual
+                feature_names_all = feat_cols
+                cog_features = cog_features_global
+
+            try:
+                metrics = train_ebm_variant(
+                    df_sex=df_sex,
+                    feature_names_all=feature_names_all,
+                    cog_features=cog_features,
+                    sex_label=sex,
+                    variant_label=variant_label,
+                )
+                all_results.append(metrics)
+            except ValueError as e:
+                print(f"    Skipping sex={sex}, variant={variant_label} due to error: {e}")
 
 
 # ---------------------------------------------------------
