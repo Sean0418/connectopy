@@ -44,6 +44,37 @@ export(xgb_feature_importance)
 export(xgb_top_features)
 export(xgb_evaluate)
 
+# EBM (Explainable Boosting Machine)
+export(ConnectomeEBM)
+export(ebm_fit)
+export(ebm_predict)
+export(ebm_predict_proba)
+export(ebm_top_features)
+export(ebm_evaluate)
+export(ebm_fit_with_cv)
+
+# SVM
+export(ConnectomeSVM)
+export(svm_fit)
+export(svm_predict)
+export(svm_predict_proba)
+export(svm_top_features)
+export(svm_evaluate)
+export(svm_fit_with_cv)
+
+# Logistic Regression
+export(ConnectomeLogistic)
+export(logistic_fit)
+export(logistic_predict)
+export(logistic_predict_proba)
+export(logistic_coefficients)
+export(logistic_top_features)
+export(logistic_evaluate)
+export(logistic_fit_with_cv)
+
+# fit_with_cv for RF
+export(rf_fit_with_cv)
+
 # Imports
 importFrom(reticulate, import)
 importFrom(reticulate, py_module_available)

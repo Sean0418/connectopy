@@ -91,6 +91,29 @@ top_features <- rf_top_features(clf, n = 10)
 print(top_features)
 ```
 
+### Advanced Training with Cross-Validation
+
+```r
+# Use fit_with_cv for GridSearchCV + class imbalance handling
+clf <- ConnectomeRandomForest(n_estimators = 200L)
+metrics <- rf_fit_with_cv(clf, X, y, 
+                          feature_names = feature_cols,
+                          handle_imbalance = TRUE)
+
+cat("Test AUC:", metrics$test_auc, "\n")
+cat("Test Balanced Accuracy:", metrics$test_bal_acc, "\n")
+
+# Also works for EBM, SVM, Logistic
+ebm <- ConnectomeEBM(max_leaves = 3L)
+ebm_metrics <- ebm_fit_with_cv(ebm, X, y, feature_names = feature_cols)
+
+svm <- ConnectomeSVM(kernel = "rbf")
+svm_metrics <- svm_fit_with_cv(svm, X, y, feature_names = feature_cols)
+
+logistic <- ConnectomeLogistic(penalty = "l2")
+log_metrics <- logistic_fit_with_cv(logistic, X, y, feature_names = feature_cols)
+```
+
 ## PCA Analysis
 
 ```r
@@ -128,13 +151,32 @@ head(report)
 - `dimorphism_top_features(analysis, n)` - Get top features
 
 ### Models
+
+**Random Forest**
 - `ConnectomeRandomForest(n_estimators)` - Create RF classifier
 - `rf_fit(model, X, y)` - Fit model
+- `rf_fit_with_cv(model, X, y, ...)` - Fit with GridSearchCV
 - `rf_predict(model, X)` - Predict
 - `rf_evaluate(model, X_test, y_test)` - Evaluate
 - `rf_top_features(model, n)` - Get important features
+
+**XGBoost**
 - `ConnectomeXGBoost(n_estimators)` - Create XGBoost classifier
-- (Similar xgb_* functions)
+- `xgb_fit`, `xgb_predict`, `xgb_evaluate`, `xgb_top_features`
+
+**EBM (Explainable Boosting Machine)**
+- `ConnectomeEBM(max_bins, learning_rate)` - Create EBM classifier
+- `ebm_fit`, `ebm_fit_with_cv`, `ebm_predict`, `ebm_evaluate`, `ebm_top_features`
+
+**SVM (Support Vector Machine)**
+- `ConnectomeSVM(C, kernel, gamma)` - Create SVM classifier
+- `svm_fit`, `svm_fit_with_cv`, `svm_predict`, `svm_evaluate`, `svm_top_features`
+
+**Logistic Regression**
+- `ConnectomeLogistic(C, penalty, solver)` - Create Logistic classifier
+- `logistic_fit`, `logistic_fit_with_cv`, `logistic_predict`, `logistic_evaluate`
+- `logistic_coefficients(model)` - Get feature coefficients
+- `logistic_top_features(model, n)` - Get top features by coefficient
 
 ## How It Works
 
