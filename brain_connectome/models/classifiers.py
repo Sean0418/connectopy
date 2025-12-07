@@ -518,9 +518,10 @@ class ConnectomeEBM:
         # Extract feature importances from EBM
         # EBM stores term importances which we can use
         importances = []
+        term_importances = self.model.term_importances()
         for i, _ in enumerate(self.feature_names):
-            if i < len(self.model.term_importances_):
-                importances.append(self.model.term_importances_[i])
+            if i < len(term_importances):
+                importances.append(term_importances[i])
             else:
                 importances.append(0.0)
 
