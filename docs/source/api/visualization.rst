@@ -2,9 +2,7 @@ Visualization Module
 ====================
 
 .. automodule:: connectopy.visualization
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :no-members:
 
 Plotting Functions
 ------------------
