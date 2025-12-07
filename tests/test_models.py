@@ -6,13 +6,16 @@ import pytest
 
 from brain_connectome.models.classifiers import ConnectomeRandomForest
 
-# Check if EBM is available
+# Check if interpret package is installed (required for EBM)
 try:
+    from interpret.glassbox import ExplainableBoostingClassifier  # noqa: F401
+
     from brain_connectome.models.classifiers import ConnectomeEBM
 
     EBM_AVAILABLE = True
 except ImportError:
     EBM_AVAILABLE = False
+    ConnectomeEBM = None  # type: ignore[misc, assignment]
 
 
 class TestConnectomeRandomForest:
