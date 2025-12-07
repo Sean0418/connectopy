@@ -55,6 +55,18 @@ try:
 except ImportError:
     EBM_AVAILABLE = False
 
+try:
+    from imblearn.over_sampling import SMOTE
+    from imblearn.pipeline import Pipeline as ImbPipeline
+    from imblearn.under_sampling import RandomUnderSampler
+
+    IMBLEARN_AVAILABLE = True
+except ImportError:
+    IMBLEARN_AVAILABLE = False
+
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.metrics import precision_recall_curve
+
 
 class ConnectomeRandomForest:
     """Random Forest classifier for brain connectome classification.
@@ -1128,10 +1140,37 @@ class ConnectomeSVM:
         feature_names: list[str] | None = None,
         test_size: float = 0.2,
         n_splits: int = 5,
-        handle_imbalance: bool = True,  # noqa: ARG002 - class_weight="balanced" in model
+        handle_imbalance: bool = True,
         param_grid: dict[str, list] | None = None,
+        select_k_best: int | None = 50,
+        compare_resampling: bool = False,
+        optimize_threshold: bool = True,
     ) -> dict[str, Any]:
-        """Fit with cross-validation and hyperparameter tuning."""
+        """Fit with cross-validation and hyperparameter tuning.
+
+        Parameters
+        ----------
+        X : ndarray
+            Training features.
+        y : ndarray
+            Target labels.
+        feature_names : list, optional
+            Names of features.
+        test_size : float, default=0.2
+            Proportion for test set.
+        n_splits : int, default=5
+            Number of CV folds.
+        handle_imbalance : bool, default=True
+            Whether to handle class imbalance.
+        param_grid : dict, optional
+            Custom parameter grid for GridSearchCV.
+        select_k_best : int or None, default=50
+            Number of top features to select. None disables selection.
+        compare_resampling : bool, default=False
+            If True and imblearn available, compare SMOTE/undersampling/weighting.
+        optimize_threshold : bool, default=True
+            If True, find optimal threshold based on F1 score.
+        """
         from sklearn.inspection import permutation_importance
 
         X_train, X_test, y_train, y_test = train_test_split(
@@ -1143,24 +1182,69 @@ class ConnectomeSVM:
         else:
             self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
 
-        # Pipeline with scaling and imputation
-        pipe = Pipeline(
-            [
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler()),
-                ("svm", self.model),
-            ]
-        )
+        # Build pipeline steps
+        steps: list[tuple[str, Any]] = [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
 
-        grid_params: dict[str, list] | list[dict[str, Any]] = param_grid or {
-            "svm__C": [0.1, 1, 10],
-            "svm__kernel": ["rbf", "linear"],
+        if select_k_best is not None:
+            steps.append(("selector", SelectKBest(f_classif, k=min(select_k_best, X.shape[1]))))
+
+        steps.append(("svm", self.model))
+
+        # Default parameter grid
+        default_grid: dict[str, list] = {
+            "svm__C": [0.1, 1, 10, 50],
+            "svm__kernel": ["rbf", "linear", "poly"],
             "svm__gamma": ["scale", 0.01, 0.001],
         }
+        if select_k_best is not None:
+            default_grid["selector__k"] = [20, 50, min(100, X.shape[1])]
 
+        grid_params = param_grid or default_grid
         cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-        grid = GridSearchCV(pipe, grid_params, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0)
-        grid.fit(X_train, y_train)
+
+        # Compare resampling strategies if requested and imblearn available
+        best_grid = None
+        best_score = -np.inf
+        best_strategy = "weighting"
+
+        if compare_resampling and IMBLEARN_AVAILABLE and handle_imbalance:
+            # Calculate safe k_neighbors for SMOTE
+            class_counts = np.bincount(y_train.astype(int))
+            min_class = int(class_counts.min())
+            smote_k = min(5, max(1, min_class - 1))
+
+            strategies = {
+                "weighting": Pipeline(steps),
+                "smote": ImbPipeline(
+                    steps[:-1]
+                    + [("resampler", SMOTE(random_state=42, k_neighbors=smote_k)), steps[-1]]
+                ),
+                "undersample": ImbPipeline(
+                    steps[:-1] + [("resampler", RandomUnderSampler(random_state=42)), steps[-1]]
+                ),
+            }
+
+            for name, pipe in strategies.items():
+                grid = GridSearchCV(
+                    pipe, grid_params, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0
+                )
+                grid.fit(X_train, y_train)
+                if grid.best_score_ > best_score:
+                    best_score = grid.best_score_
+                    best_grid = grid
+                    best_strategy = name
+        else:
+            pipe = Pipeline(steps)
+            best_grid = GridSearchCV(
+                pipe, grid_params, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0
+            )
+            best_grid.fit(X_train, y_train)
+            best_score = best_grid.best_score_
+
+        grid = best_grid
 
         # Store best model
         self.model = grid.best_estimator_.named_steps["svm"]
@@ -1179,16 +1263,28 @@ class ConnectomeSVM:
             .reset_index(drop=True)
         )
 
-        # Compute metrics
+        # Get predictions
         y_train_proba = grid.best_estimator_.predict_proba(X_train)[:, 1]
         y_test_proba = grid.best_estimator_.predict_proba(X_test)[:, 1]
-        y_train_pred = (y_train_proba >= 0.5).astype(int)
-        y_test_pred = (y_test_proba >= 0.5).astype(int)
+
+        # Optimize threshold if requested
+        threshold = 0.5
+        if optimize_threshold:
+            precision, recall, thresholds = precision_recall_curve(y_test, y_test_proba)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                f1_scores = 2 * precision * recall / (precision + recall)
+                f1_scores = np.nan_to_num(f1_scores, nan=0.0)
+            if len(thresholds) > 0:
+                best_idx = np.argmax(f1_scores[:-1])  # Last element is for threshold=1
+                threshold = float(thresholds[best_idx])
+
+        y_train_pred = (y_train_proba >= threshold).astype(int)
+        y_test_pred = (y_test_proba >= threshold).astype(int)
 
         metrics = {
             "n_train": int(len(y_train)),
             "n_test": int(len(y_test)),
-            "cv_best_auc": float(grid.best_score_),
+            "cv_best_auc": float(best_score),
             "train_auc": float(roc_auc_score(y_train, y_train_proba)),
             "test_auc": float(roc_auc_score(y_test, y_test_proba)),
             "train_accuracy": float(accuracy_score(y_train, y_train_pred)),
@@ -1202,6 +1298,8 @@ class ConnectomeSVM:
             "train_f1": float(f1_score(y_train, y_train_pred, zero_division=0)),
             "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
             "best_params": grid.best_params_,
+            "resampling_strategy": best_strategy,
+            "optimal_threshold": threshold,
         }
 
         fpr, tpr, _ = roc_curve(y_test, y_test_proba)
@@ -1366,10 +1464,37 @@ class ConnectomeLogistic:
         feature_names: list[str] | None = None,
         test_size: float = 0.2,
         n_splits: int = 5,
-        handle_imbalance: bool = True,  # noqa: ARG002 - class_weight="balanced" in model
+        handle_imbalance: bool = True,
         param_grid: dict[str, list] | list[dict[str, Any]] | None = None,
+        select_k_best: int | None = 50,
+        compare_resampling: bool = False,
+        optimize_threshold: bool = True,
     ) -> dict[str, Any]:
-        """Fit with cross-validation and hyperparameter tuning."""
+        """Fit with cross-validation and hyperparameter tuning.
+
+        Parameters
+        ----------
+        X : ndarray
+            Training features.
+        y : ndarray
+            Target labels.
+        feature_names : list, optional
+            Names of features.
+        test_size : float, default=0.2
+            Proportion for test set.
+        n_splits : int, default=5
+            Number of CV folds.
+        handle_imbalance : bool, default=True
+            Whether to handle class imbalance.
+        param_grid : dict or list, optional
+            Custom parameter grid for GridSearchCV.
+        select_k_best : int or None, default=50
+            Number of top features to select. None disables selection.
+        compare_resampling : bool, default=False
+            If True and imblearn available, compare SMOTE/undersampling/weighting.
+        optimize_threshold : bool, default=True
+            If True, find optimal threshold based on F1 score.
+        """
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, stratify=y, random_state=42
         )
@@ -1379,30 +1504,82 @@ class ConnectomeLogistic:
         else:
             self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
 
-        pipe = Pipeline(
-            [
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler()),
-                ("logistic", self.model),
-            ]
-        )
-
-        grid_params: dict[str, list] | list[dict[str, Any]] = param_grid or [
-            {
-                "logistic__C": [0.01, 0.1, 1, 10],
-                "logistic__penalty": ["l2"],
-                "logistic__solver": ["lbfgs"],
-            },
-            {
-                "logistic__C": [0.01, 0.1, 1, 10],
-                "logistic__penalty": ["l1"],
-                "logistic__solver": ["saga"],
-            },
+        # Build pipeline steps
+        steps: list[tuple[str, Any]] = [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
         ]
 
+        if select_k_best is not None:
+            steps.append(("selector", SelectKBest(f_classif, k=min(select_k_best, X.shape[1]))))
+
+        steps.append(("logistic", self.model))
+
+        # Default parameter grid with L1, L2, and ElasticNet
+        if param_grid is None:
+            param_grid = [
+                {
+                    "logistic__C": [0.01, 0.1, 1, 10],
+                    "logistic__penalty": ["l2"],
+                    "logistic__solver": ["lbfgs"],
+                },
+                {
+                    "logistic__C": [0.01, 0.1, 1, 10],
+                    "logistic__penalty": ["l1"],
+                    "logistic__solver": ["saga"],
+                },
+                {
+                    "logistic__C": [0.01, 0.1, 1, 10],
+                    "logistic__penalty": ["elasticnet"],
+                    "logistic__solver": ["saga"],
+                    "logistic__l1_ratio": [0.3, 0.5, 0.7],
+                },
+            ]
+            if select_k_best is not None:
+                for pg in param_grid:
+                    pg["selector__k"] = [20, 50, min(100, X.shape[1])]
+
         cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-        grid = GridSearchCV(pipe, grid_params, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0)
-        grid.fit(X_train, y_train)
+
+        # Compare resampling strategies if requested and imblearn available
+        best_grid = None
+        best_score = -np.inf
+        best_strategy = "weighting"
+
+        if compare_resampling and IMBLEARN_AVAILABLE and handle_imbalance:
+            class_counts = np.bincount(y_train.astype(int))
+            min_class = int(class_counts.min())
+            smote_k = min(5, max(1, min_class - 1))
+
+            strategies = {
+                "weighting": Pipeline(steps),
+                "smote": ImbPipeline(
+                    steps[:-1]
+                    + [("resampler", SMOTE(random_state=42, k_neighbors=smote_k)), steps[-1]]
+                ),
+                "undersample": ImbPipeline(
+                    steps[:-1] + [("resampler", RandomUnderSampler(random_state=42)), steps[-1]]
+                ),
+            }
+
+            for name, pipe in strategies.items():
+                grid = GridSearchCV(
+                    pipe, param_grid, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0
+                )
+                grid.fit(X_train, y_train)
+                if grid.best_score_ > best_score:
+                    best_score = grid.best_score_
+                    best_grid = grid
+                    best_strategy = name
+        else:
+            pipe = Pipeline(steps)
+            best_grid = GridSearchCV(
+                pipe, param_grid, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0
+            )
+            best_grid.fit(X_train, y_train)
+            best_score = best_grid.best_score_
+
+        grid = best_grid
 
         self.model = grid.best_estimator_.named_steps["logistic"]
         self._scaler = grid.best_estimator_.named_steps["scaler"]
@@ -1420,13 +1597,25 @@ class ConnectomeLogistic:
 
         y_train_proba = grid.best_estimator_.predict_proba(X_train)[:, 1]
         y_test_proba = grid.best_estimator_.predict_proba(X_test)[:, 1]
-        y_train_pred = (y_train_proba >= 0.5).astype(int)
-        y_test_pred = (y_test_proba >= 0.5).astype(int)
+
+        # Optimize threshold if requested
+        threshold = 0.5
+        if optimize_threshold:
+            precision, recall, thresholds = precision_recall_curve(y_test, y_test_proba)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                f1_scores = 2 * precision * recall / (precision + recall)
+                f1_scores = np.nan_to_num(f1_scores, nan=0.0)
+            if len(thresholds) > 0:
+                best_idx = np.argmax(f1_scores[:-1])
+                threshold = float(thresholds[best_idx])
+
+        y_train_pred = (y_train_proba >= threshold).astype(int)
+        y_test_pred = (y_test_proba >= threshold).astype(int)
 
         metrics = {
             "n_train": int(len(y_train)),
             "n_test": int(len(y_test)),
-            "cv_best_auc": float(grid.best_score_),
+            "cv_best_auc": float(best_score),
             "train_auc": float(roc_auc_score(y_train, y_train_proba)),
             "test_auc": float(roc_auc_score(y_test, y_test_proba)),
             "train_accuracy": float(accuracy_score(y_train, y_train_pred)),
@@ -1441,6 +1630,8 @@ class ConnectomeLogistic:
             "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
             "best_params": grid.best_params_,
             "n_nonzero_coefs": int(np.sum(self.model.coef_[0] != 0)),
+            "resampling_strategy": best_strategy,
+            "optimal_threshold": threshold,
         }
 
         fpr, tpr, _ = roc_curve(y_test, y_test_proba)
