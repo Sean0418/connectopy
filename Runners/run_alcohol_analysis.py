@@ -177,6 +177,7 @@ def train_rf_variant(
         Training metrics if successful.
     """
     import numpy as np
+
     from connectopy.models import ConnectomeRandomForest
 
     cols = feature_names + ["alc_y"]
@@ -265,6 +266,7 @@ def train_ebm_variant(
         Training metrics if successful.
     """
     import numpy as np
+
     from connectopy.models import ConnectomeEBM
 
     cols = feature_names + ["alc_y"]
@@ -411,6 +413,7 @@ def run_alcohol_analysis(
         Whether to print progress.
     """
     import pandas as pd
+
     from connectopy.models import get_cognitive_features, get_connectome_features
 
     # Set defaults for mutable arguments

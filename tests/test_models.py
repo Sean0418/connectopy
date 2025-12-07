@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from connectopy.models.classifiers import (
     ConnectomeLogistic,
     ConnectomeRandomForest,
@@ -14,8 +15,9 @@ from connectopy.models.classifiers import (
 
 # Check if interpret package is installed (required for EBM)
 try:
-    from connectopy.models.classifiers import ConnectomeEBM
     from interpret.glassbox import ExplainableBoostingClassifier  # noqa: F401
+
+    from connectopy.models.classifiers import ConnectomeEBM
 
     EBM_AVAILABLE = True
 except ImportError:

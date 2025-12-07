@@ -80,8 +80,9 @@ def check_raw_connectomes_exist(data_dir: Path) -> bool:
 def run_pca_analysis(data_dir: Path, output_dir: Path) -> None:
     """Run PCA on raw connectome data."""
     import numpy as np
-    from connectopy.analysis import ConnectomePCA
     from scipy.io import loadmat
+
+    from connectopy.analysis import ConnectomePCA
 
     print("Loading raw structural connectome data...")
     sc_path = data_dir / "raw" / "SC" / "HCP_cortical_DesikanAtlas_SC.mat"
@@ -152,9 +153,10 @@ def run_pca_analysis(data_dir: Path, output_dir: Path) -> None:
 def run_vae_analysis(data_dir: Path, output_dir: Path, epochs: int = 200) -> None:
     """Run VAE on raw connectome data."""
     import numpy as np
-    from connectopy.analysis import ConnectomeVAE
     from scipy.io import loadmat
     from sklearn.model_selection import train_test_split
+
+    from connectopy.analysis import ConnectomeVAE
 
     print("Loading raw structural connectome data...")
     sc_path = data_dir / "raw" / "SC" / "HCP_cortical_DesikanAtlas_SC.mat"
@@ -276,6 +278,7 @@ def run_ml_classification(data, output_dir: Path):
     """
     import numpy as np
     import pandas as pd
+
     from connectopy.models import (
         ConnectomeEBM,
         ConnectomeRandomForest,
@@ -568,6 +571,7 @@ def generate_plots(data, output_dir: Path, dimorphism_results=None):
     matplotlib.use("Agg")  # Non-interactive backend
     import matplotlib.pyplot as plt
     import pandas as pd
+
     from connectopy.visualization import (
         plot_dimorphism_comparison,
         plot_feature_importance,
