@@ -152,8 +152,13 @@ def load_connectome_pca(mat_path: Path) -> tuple[np.ndarray, np.ndarray]:
             if "subj" in key.lower() or "id" in key.lower():
                 id_key = key
 
-    pca_coeff = np.array(mat[coeff_key]) if coeff_key else None
-    subject_ids = np.array(mat[id_key]).flatten() if id_key else None
+    if coeff_key is None:
+        raise KeyError(f"No coefficient key found in {mat_path}")
+    if id_key is None:
+        raise KeyError(f"No subject ID key found in {mat_path}")
+
+    pca_coeff: np.ndarray = np.array(mat[coeff_key])
+    subject_ids: np.ndarray = np.array(mat[id_key]).flatten()
 
     if pca_coeff is not None:
         print(f"    Original PCA shape: {pca_coeff.shape}")
