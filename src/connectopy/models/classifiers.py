@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -34,6 +35,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -985,6 +988,469 @@ class ConnectomeEBM:
         roc_data : dict
             Dictionary with 'fpr', 'tpr', and 'auc' keys.
         """
+        if not hasattr(self, "_roc_data"):
+            raise ValueError("Must call fit_with_cv first")
+        return self._roc_data
+
+
+class ConnectomeSVM:
+    """Support Vector Machine classifier for brain connectome classification.
+
+    This class wraps scikit-learn's SVC with additional functionality for
+    feature importance analysis (via permutation importance) and reporting.
+
+    Parameters
+    ----------
+    C : float, default=1.0
+        Regularization parameter.
+    kernel : str, default='rbf'
+        Kernel type ('linear', 'poly', 'rbf', 'sigmoid').
+    gamma : str or float, default='scale'
+        Kernel coefficient.
+    random_state : int, default=42
+        Random seed for reproducibility.
+    **kwargs : dict
+        Additional arguments passed to SVC.
+
+    Attributes
+    ----------
+    model : SVC
+        Underlying sklearn model.
+    feature_names : list or None
+        Names of features used in training.
+    feature_importances_ : DataFrame or None
+        Feature importance scores after fitting (permutation-based).
+
+    Examples
+    --------
+    >>> clf = ConnectomeSVM(C=1.0, kernel='rbf')
+    >>> clf.fit(X_train, y_train, feature_names=feature_cols)
+    >>> predictions = clf.predict(X_test)
+    """
+
+    def __init__(
+        self,
+        C: float = 1.0,
+        kernel: str = "rbf",
+        gamma: str | float = "scale",
+        random_state: int = 42,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the classifier."""
+        self.model = SVC(
+            C=C,
+            kernel=kernel,
+            gamma=gamma,
+            probability=True,
+            class_weight="balanced",
+            random_state=random_state,
+            **kwargs,
+        )
+        self.feature_names: list[str] | None = None
+        self.feature_importances_: pd.DataFrame | None = None
+        self.classes_: NDArray | None = None
+        self._scaler: StandardScaler | None = None
+
+    def fit(
+        self,
+        X: NDArray[np.float64],
+        y: NDArray,
+        feature_names: list[str] | None = None,
+    ) -> ConnectomeSVM:
+        """Fit the model.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Training features.
+        y : ndarray of shape (n_samples,)
+            Target labels.
+        feature_names : list of str, optional
+            Names of features.
+
+        Returns
+        -------
+        self : ConnectomeSVM
+            Fitted classifier.
+        """
+        # Scale features (critical for SVM)
+        self._scaler = StandardScaler()
+        X_scaled = self._scaler.fit_transform(X)
+
+        self.model.fit(X_scaled, y)
+        self.classes_ = self.model.classes_
+
+        if feature_names is not None:
+            self.feature_names = feature_names
+        else:
+            self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        # For SVM, we'll compute feature importances later via permutation
+        self.feature_importances_ = pd.DataFrame(
+            {"Feature": self.feature_names, "Importance": np.zeros(len(self.feature_names))}
+        )
+
+        return self
+
+    def predict(self, X: NDArray[np.float64]) -> NDArray:
+        """Predict class labels."""
+        if self._scaler is None:
+            raise ValueError("Model must be fit first")
+        X_scaled = self._scaler.transform(X)
+        return self.model.predict(X_scaled)
+
+    def predict_proba(self, X: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Predict class probabilities."""
+        if self._scaler is None:
+            raise ValueError("Model must be fit first")
+        X_scaled = self._scaler.transform(X)
+        return self.model.predict_proba(X_scaled)
+
+    def get_top_features(self, n: int = 10) -> pd.DataFrame:
+        """Get top n most important features."""
+        if self.feature_importances_ is None:
+            raise ValueError("Model must be fit first")
+        return self.feature_importances_.head(n)
+
+    def evaluate(self, X_test: NDArray[np.float64], y_test: NDArray) -> dict:
+        """Evaluate model on test set."""
+        y_pred = self.predict(X_test)
+        return {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "confusion_matrix": confusion_matrix(y_test, y_pred),
+            "classification_report": classification_report(y_test, y_pred, output_dict=True),
+        }
+
+    def fit_with_cv(
+        self,
+        X: NDArray[np.float64],
+        y: NDArray,
+        feature_names: list[str] | None = None,
+        test_size: float = 0.2,
+        n_splits: int = 5,
+        handle_imbalance: bool = True,  # noqa: ARG002 - class_weight="balanced" in model
+        param_grid: dict[str, list] | None = None,
+    ) -> dict[str, Any]:
+        """Fit with cross-validation and hyperparameter tuning."""
+        from sklearn.inspection import permutation_importance
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, stratify=y, random_state=42
+        )
+
+        if feature_names is not None:
+            self.feature_names = feature_names
+        else:
+            self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        # Pipeline with scaling and imputation
+        pipe = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+                ("svm", self.model),
+            ]
+        )
+
+        grid_params: dict[str, list] | list[dict[str, Any]] = param_grid or {
+            "svm__C": [0.1, 1, 10],
+            "svm__kernel": ["rbf", "linear"],
+            "svm__gamma": ["scale", 0.01, 0.001],
+        }
+
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        grid = GridSearchCV(pipe, grid_params, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0)
+        grid.fit(X_train, y_train)
+
+        # Store best model
+        self.model = grid.best_estimator_.named_steps["svm"]
+        self._scaler = grid.best_estimator_.named_steps["scaler"]
+        self.classes_ = np.unique(y)
+        self._best_params = grid.best_params_
+        self._cv_score = grid.best_score_
+
+        # Compute permutation importance
+        perm = permutation_importance(
+            grid.best_estimator_, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1
+        )
+        self.feature_importances_ = (
+            pd.DataFrame({"Feature": self.feature_names, "Importance": perm.importances_mean})
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        # Compute metrics
+        y_train_proba = grid.best_estimator_.predict_proba(X_train)[:, 1]
+        y_test_proba = grid.best_estimator_.predict_proba(X_test)[:, 1]
+        y_train_pred = (y_train_proba >= 0.5).astype(int)
+        y_test_pred = (y_test_proba >= 0.5).astype(int)
+
+        metrics = {
+            "n_train": int(len(y_train)),
+            "n_test": int(len(y_test)),
+            "cv_best_auc": float(grid.best_score_),
+            "train_auc": float(roc_auc_score(y_train, y_train_proba)),
+            "test_auc": float(roc_auc_score(y_test, y_test_proba)),
+            "train_accuracy": float(accuracy_score(y_train, y_train_pred)),
+            "test_accuracy": float(accuracy_score(y_test, y_test_pred)),
+            "train_bal_acc": float(balanced_accuracy_score(y_train, y_train_pred)),
+            "test_bal_acc": float(balanced_accuracy_score(y_test, y_test_pred)),
+            "train_precision": float(precision_score(y_train, y_train_pred, zero_division=0)),
+            "test_precision": float(precision_score(y_test, y_test_pred, zero_division=0)),
+            "train_recall": float(recall_score(y_train, y_train_pred, zero_division=0)),
+            "test_recall": float(recall_score(y_test, y_test_pred, zero_division=0)),
+            "train_f1": float(f1_score(y_train, y_train_pred, zero_division=0)),
+            "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
+            "best_params": grid.best_params_,
+        }
+
+        fpr, tpr, _ = roc_curve(y_test, y_test_proba)
+        self._roc_data = {"fpr": fpr, "tpr": tpr, "auc": metrics["test_auc"]}
+        self._test_data = (X_test, y_test, y_test_proba)
+
+        return metrics
+
+    def get_roc_data(self) -> dict[str, NDArray]:
+        """Get ROC curve data after fitting with CV."""
+        if not hasattr(self, "_roc_data"):
+            raise ValueError("Must call fit_with_cv first")
+        return self._roc_data
+
+
+class ConnectomeLogistic:
+    """Logistic Regression classifier for brain connectome classification.
+
+    This class wraps scikit-learn's LogisticRegression with L1/L2/ElasticNet
+    regularization for feature selection and interpretability.
+
+    Parameters
+    ----------
+    C : float, default=1.0
+        Inverse of regularization strength.
+    penalty : str, default='l2'
+        Regularization type ('l1', 'l2', 'elasticnet', None).
+    solver : str, default='lbfgs'
+        Optimization algorithm.
+    max_iter : int, default=1000
+        Maximum iterations for convergence.
+    random_state : int, default=42
+        Random seed for reproducibility.
+    **kwargs : dict
+        Additional arguments passed to LogisticRegression.
+
+    Attributes
+    ----------
+    model : LogisticRegression
+        Underlying sklearn model.
+    feature_names : list or None
+        Names of features used in training.
+    feature_importances_ : DataFrame or None
+        Feature importance scores (absolute coefficients).
+
+    Examples
+    --------
+    >>> clf = ConnectomeLogistic(C=1.0, penalty='l1', solver='saga')
+    >>> clf.fit(X_train, y_train, feature_names=feature_cols)
+    >>> predictions = clf.predict(X_test)
+    >>> # L1 regularization provides sparse coefficients for feature selection
+    """
+
+    def __init__(
+        self,
+        C: float = 1.0,
+        penalty: str = "l2",
+        solver: str = "lbfgs",
+        max_iter: int = 1000,
+        random_state: int = 42,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the classifier."""
+        self.model = LogisticRegression(
+            C=C,
+            penalty=penalty,
+            solver=solver,
+            max_iter=max_iter,
+            class_weight="balanced",
+            random_state=random_state,
+            **kwargs,
+        )
+        self.feature_names: list[str] | None = None
+        self.feature_importances_: pd.DataFrame | None = None
+        self.classes_: NDArray | None = None
+        self._scaler: StandardScaler | None = None
+
+    def fit(
+        self,
+        X: NDArray[np.float64],
+        y: NDArray,
+        feature_names: list[str] | None = None,
+    ) -> ConnectomeLogistic:
+        """Fit the model."""
+        self._scaler = StandardScaler()
+        X_scaled = self._scaler.fit_transform(X)
+
+        self.model.fit(X_scaled, y)
+        self.classes_ = self.model.classes_
+
+        if feature_names is not None:
+            self.feature_names = feature_names
+        else:
+            self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        # Use absolute coefficients as importance
+        coefs = np.abs(self.model.coef_[0])
+        self.feature_importances_ = (
+            pd.DataFrame({"Feature": self.feature_names, "Importance": coefs})
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        return self
+
+    def predict(self, X: NDArray[np.float64]) -> NDArray:
+        """Predict class labels."""
+        if self._scaler is None:
+            raise ValueError("Model must be fit first")
+        X_scaled = self._scaler.transform(X)
+        return self.model.predict(X_scaled)
+
+    def predict_proba(self, X: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Predict class probabilities."""
+        if self._scaler is None:
+            raise ValueError("Model must be fit first")
+        X_scaled = self._scaler.transform(X)
+        return self.model.predict_proba(X_scaled)
+
+    def get_top_features(self, n: int = 10) -> pd.DataFrame:
+        """Get top n most important features."""
+        if self.feature_importances_ is None:
+            raise ValueError("Model must be fit first")
+        return self.feature_importances_.head(n)
+
+    def get_coefficients(self) -> pd.DataFrame:
+        """Get feature coefficients with signs (for interpretability).
+
+        Returns
+        -------
+        coef_df : DataFrame
+            DataFrame with Feature, Coefficient, and AbsCoef columns.
+        """
+        if self.feature_names is None:
+            raise ValueError("Model must be fit first")
+        coefs = self.model.coef_[0]
+        return (
+            pd.DataFrame(
+                {
+                    "Feature": self.feature_names,
+                    "Coefficient": coefs,
+                    "AbsCoef": np.abs(coefs),
+                }
+            )
+            .sort_values("AbsCoef", ascending=False)
+            .reset_index(drop=True)
+        )
+
+    def evaluate(self, X_test: NDArray[np.float64], y_test: NDArray) -> dict:
+        """Evaluate model on test set."""
+        y_pred = self.predict(X_test)
+        return {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "confusion_matrix": confusion_matrix(y_test, y_pred),
+            "classification_report": classification_report(y_test, y_pred, output_dict=True),
+        }
+
+    def fit_with_cv(
+        self,
+        X: NDArray[np.float64],
+        y: NDArray,
+        feature_names: list[str] | None = None,
+        test_size: float = 0.2,
+        n_splits: int = 5,
+        handle_imbalance: bool = True,  # noqa: ARG002 - class_weight="balanced" in model
+        param_grid: dict[str, list] | list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Fit with cross-validation and hyperparameter tuning."""
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, stratify=y, random_state=42
+        )
+
+        if feature_names is not None:
+            self.feature_names = feature_names
+        else:
+            self.feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        pipe = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+                ("logistic", self.model),
+            ]
+        )
+
+        grid_params: dict[str, list] | list[dict[str, Any]] = param_grid or [
+            {
+                "logistic__C": [0.01, 0.1, 1, 10],
+                "logistic__penalty": ["l2"],
+                "logistic__solver": ["lbfgs"],
+            },
+            {
+                "logistic__C": [0.01, 0.1, 1, 10],
+                "logistic__penalty": ["l1"],
+                "logistic__solver": ["saga"],
+            },
+        ]
+
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        grid = GridSearchCV(pipe, grid_params, scoring="roc_auc", cv=cv, n_jobs=-1, verbose=0)
+        grid.fit(X_train, y_train)
+
+        self.model = grid.best_estimator_.named_steps["logistic"]
+        self._scaler = grid.best_estimator_.named_steps["scaler"]
+        self.classes_ = np.unique(y)
+        self._best_params = grid.best_params_
+        self._cv_score = grid.best_score_
+
+        # Use absolute coefficients as importance
+        coefs = np.abs(self.model.coef_[0])
+        self.feature_importances_ = (
+            pd.DataFrame({"Feature": self.feature_names, "Importance": coefs})
+            .sort_values("Importance", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        y_train_proba = grid.best_estimator_.predict_proba(X_train)[:, 1]
+        y_test_proba = grid.best_estimator_.predict_proba(X_test)[:, 1]
+        y_train_pred = (y_train_proba >= 0.5).astype(int)
+        y_test_pred = (y_test_proba >= 0.5).astype(int)
+
+        metrics = {
+            "n_train": int(len(y_train)),
+            "n_test": int(len(y_test)),
+            "cv_best_auc": float(grid.best_score_),
+            "train_auc": float(roc_auc_score(y_train, y_train_proba)),
+            "test_auc": float(roc_auc_score(y_test, y_test_proba)),
+            "train_accuracy": float(accuracy_score(y_train, y_train_pred)),
+            "test_accuracy": float(accuracy_score(y_test, y_test_pred)),
+            "train_bal_acc": float(balanced_accuracy_score(y_train, y_train_pred)),
+            "test_bal_acc": float(balanced_accuracy_score(y_test, y_test_pred)),
+            "train_precision": float(precision_score(y_train, y_train_pred, zero_division=0)),
+            "test_precision": float(precision_score(y_test, y_test_pred, zero_division=0)),
+            "train_recall": float(recall_score(y_train, y_train_pred, zero_division=0)),
+            "test_recall": float(recall_score(y_test, y_test_pred, zero_division=0)),
+            "train_f1": float(f1_score(y_train, y_train_pred, zero_division=0)),
+            "test_f1": float(f1_score(y_test, y_test_pred, zero_division=0)),
+            "best_params": grid.best_params_,
+            "n_nonzero_coefs": int(np.sum(self.model.coef_[0] != 0)),
+        }
+
+        fpr, tpr, _ = roc_curve(y_test, y_test_proba)
+        self._roc_data = {"fpr": fpr, "tpr": tpr, "auc": metrics["test_auc"]}
+        self._test_data = (X_test, y_test, y_test_proba)
+
+        return metrics
+
+    def get_roc_data(self) -> dict[str, NDArray]:
+        """Get ROC curve data after fitting with CV."""
         if not hasattr(self, "_roc_data"):
             raise ValueError("Must call fit_with_cv first")
         return self._roc_data
