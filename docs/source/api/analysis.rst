@@ -2,9 +2,7 @@ Analysis Module
 ===============
 
 .. automodule:: connectopy.analysis
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :no-members:
 
 ConnectomePCA
 -------------

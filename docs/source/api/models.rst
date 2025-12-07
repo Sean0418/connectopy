@@ -2,9 +2,7 @@ Models Module
 =============
 
 .. automodule:: connectopy.models
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :no-members:
 
 ConnectomeRandomForest
 ----------------------

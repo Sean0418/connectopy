@@ -2,9 +2,7 @@ Data Module
 ===========
 
 .. automodule:: connectopy.data
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :no-members:
 
 ConnectomeDataLoader
 --------------------
