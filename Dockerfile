@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy and install the package
 COPY pyproject.toml .
-COPY connectopy/ connectopy/
+COPY src/ src/
 COPY Runners/ Runners/
 RUN pip install --no-cache-dir .
 
@@ -59,7 +59,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
-COPY connectopy/ connectopy/
+COPY src/ src/
 COPY Runners/ Runners/
 COPY Documentation/ Documentation/
 COPY README.md .

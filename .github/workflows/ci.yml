@@ -34,7 +34,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run MyPy
-        run: mypy connectopy/ Runners/
+        run: mypy src/connectopy/ Runners/
 
   test:
     name: Tests

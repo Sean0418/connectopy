@@ -123,11 +123,12 @@ python Runners/run_pipeline.py --skip-ml          # Skip ML classification
 
 ```
 connectopy/
-├── connectopy/           # Python package
-│   ├── data/                   # Data loading (loader.py, preprocessing.py)
-│   ├── analysis/               # Analysis (pca.py, vae.py, dimorphism.py)
-│   ├── models/                 # ML models (classifiers.py)
-│   └── visualization/          # Plotting (plots.py)
+├── src/
+│   └── connectopy/             # Python package (src layout)
+│       ├── data/               # Data loading (loader.py, preprocessing.py)
+│       ├── analysis/           # Analysis (pca.py, vae.py, dimorphism.py)
+│       ├── models/             # ML models (classifiers.py)
+│       └── visualization/      # Plotting (plots.py)
 ├── r-package/                  # R interface via reticulate
 ├── Runners/                    # Pipeline automation
 ├── Documentation/              # Detailed documentation

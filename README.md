@@ -203,11 +203,12 @@ print(f"Sex difference significant: {result.diff_significant}")
 
 ```
 connectopy/
-├── connectopy/                 # Python package
-│   ├── data/                   # Data loading (HCPLoader, preprocessing)
-│   ├── analysis/               # PCA, VAE, dimorphism, mediation analysis
-│   ├── models/                 # ML classifiers (RF, XGBoost, EBM)
-│   └── visualization/          # Plotting functions
+├── src/
+│   └── connectopy/             # Python package (src layout)
+│       ├── data/               # Data loading (HCPLoader, preprocessing)
+│       ├── analysis/           # PCA, VAE, dimorphism, mediation analysis
+│       ├── models/             # ML classifiers (RF, XGBoost, EBM)
+│       └── visualization/      # Plotting functions
 ├── Runners/                    # Pipeline execution scripts
 ├── tests/                      # Unit tests
 ├── docs/                       # Sphinx documentation
@@ -250,7 +251,7 @@ pytest
 ```bash
 ruff check .
 ruff format .
-mypy connectopy/
+mypy src/connectopy/
 ```
 
 ### Building Documentation

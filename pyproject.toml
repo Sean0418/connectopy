@@ -68,7 +68,7 @@ Repository = "https://github.com/Sean0418/connectopy"
 connectopy = "connectopy.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["connectopy*"]
 
 # Ruff configuration (linting and formatting)
