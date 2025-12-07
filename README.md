@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/ci.yml)
 [![Docker](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml/badge.svg)](https://github.com/Sean0418/Brain-Connectome/actions/workflows/docker.yml)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Sean0418/Brain-Connectome/blob/main/notebooks/colab_demo.ipynb)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -17,9 +18,17 @@ A Python package for analyzing brain structural and functional connectomes from 
 - **Visualization**: Publication-ready plots for connectome analysis
 - **Reproducibility**: Docker container and automated pipelines
 
+## One-Click Demo (No Setup Required)
+
+Try the analysis instantly in Google Colab - no installation needed!
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Sean0418/Brain-Connectome/blob/main/notebooks/colab_demo.ipynb)
+
+Just click the badge above and then **Runtime → Run all** to execute the entire analysis.
+
 ## Quick Start with Docker
 
-The easiest way to run the analysis pipeline:
+The easiest way to run the analysis pipeline locally:
 
 ```bash
 # Pull the latest image
