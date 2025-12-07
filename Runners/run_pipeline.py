@@ -348,9 +348,9 @@ def run_ml_classification(data, output_dir: Path):
             continue
 
         pos_rate = y.mean()
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"Training models for Sex={sex}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
         print(f"  Samples: {len(y)}, Positive rate: {pos_rate:.3f}")
 
         # Train Random Forest with CV
