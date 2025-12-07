@@ -110,6 +110,7 @@ class ConnectomeRandomForest:
         **kwargs: Any,
     ) -> None:
         """Initialize the classifier."""
+        self.random_state = random_state
         self.model = RandomForestClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -286,7 +287,7 @@ class ConnectomeRandomForest:
         """
         # Stratified train/test split
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, stratify=y, random_state=42
+            X, y, test_size=test_size, stratify=y, random_state=self.random_state
         )
 
         if feature_names is not None:
@@ -320,7 +321,7 @@ class ConnectomeRandomForest:
                 "rf__max_features": ["sqrt", "log2", 0.3],
             }
 
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
         grid = GridSearchCV(
             estimator=pipe,
             param_grid=param_grid,
@@ -657,6 +658,7 @@ class ConnectomeEBM:
                 "interpret is required for ConnectomeEBM. Install with: pip install interpret"
             )
 
+        self.random_state = random_state
         self.model = ExplainableBoostingClassifier(
             max_bins=max_bins,
             max_interaction_bins=max_interaction_bins,
@@ -892,7 +894,7 @@ class ConnectomeEBM:
         """
         # Stratified train/test split
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, stratify=y, random_state=42
+            X, y, test_size=test_size, stratify=y, random_state=self.random_state
         )
 
         if feature_names is not None:
@@ -920,7 +922,7 @@ class ConnectomeEBM:
                 "interactions": [0],  # Pure additive model
             }
 
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
         grid = GridSearchCV(
             estimator=self.model,
             param_grid=param_grid,
@@ -1049,6 +1051,7 @@ class ConnectomeSVM:
         **kwargs: Any,
     ) -> None:
         """Initialize the classifier."""
+        self.random_state = random_state
         self.model = SVC(
             C=C,
             kernel=kernel,
@@ -1174,7 +1177,7 @@ class ConnectomeSVM:
         from sklearn.inspection import permutation_importance
 
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, stratify=y, random_state=42
+            X, y, test_size=test_size, stratify=y, random_state=self.random_state
         )
 
         if feature_names is not None:
@@ -1203,7 +1206,7 @@ class ConnectomeSVM:
             default_grid["selector__k"] = [20, 50, min(100, X.shape[1])]
 
         grid_params = param_grid or default_grid
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
 
         # Compare resampling strategies if requested and imblearn available
         best_grid = None
@@ -1220,10 +1223,14 @@ class ConnectomeSVM:
                 "weighting": Pipeline(steps),
                 "smote": ImbPipeline(
                     steps[:-1]
-                    + [("resampler", SMOTE(random_state=42, k_neighbors=smote_k)), steps[-1]]
+                    + [
+                        ("resampler", SMOTE(random_state=self.random_state, k_neighbors=smote_k)),
+                        steps[-1],
+                    ]
                 ),
                 "undersample": ImbPipeline(
-                    steps[:-1] + [("resampler", RandomUnderSampler(random_state=42)), steps[-1]]
+                    steps[:-1]
+                    + [("resampler", RandomUnderSampler(random_state=self.random_state)), steps[-1]]
                 ),
             }
 
@@ -1255,7 +1262,12 @@ class ConnectomeSVM:
 
         # Compute permutation importance
         perm = permutation_importance(
-            grid.best_estimator_, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1
+            grid.best_estimator_,
+            X_test,
+            y_test,
+            n_repeats=10,
+            random_state=self.random_state,
+            n_jobs=-1,
         )
         self.feature_importances_ = (
             pd.DataFrame({"Feature": self.feature_names, "Importance": perm.importances_mean})
@@ -1363,6 +1375,7 @@ class ConnectomeLogistic:
         **kwargs: Any,
     ) -> None:
         """Initialize the classifier."""
+        self.random_state = random_state
         self.model = LogisticRegression(
             C=C,
             penalty=penalty,
@@ -1496,7 +1509,7 @@ class ConnectomeLogistic:
             If True, find optimal threshold based on F1 score.
         """
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, stratify=y, random_state=42
+            X, y, test_size=test_size, stratify=y, random_state=self.random_state
         )
 
         if feature_names is not None:
@@ -1539,7 +1552,7 @@ class ConnectomeLogistic:
                 for pg in param_grid:
                     pg["selector__k"] = [20, 50, min(100, X.shape[1])]
 
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
 
         # Compare resampling strategies if requested and imblearn available
         best_grid = None
@@ -1555,10 +1568,14 @@ class ConnectomeLogistic:
                 "weighting": Pipeline(steps),
                 "smote": ImbPipeline(
                     steps[:-1]
-                    + [("resampler", SMOTE(random_state=42, k_neighbors=smote_k)), steps[-1]]
+                    + [
+                        ("resampler", SMOTE(random_state=self.random_state, k_neighbors=smote_k)),
+                        steps[-1],
+                    ]
                 ),
                 "undersample": ImbPipeline(
-                    steps[:-1] + [("resampler", RandomUnderSampler(random_state=42)), steps[-1]]
+                    steps[:-1]
+                    + [("resampler", RandomUnderSampler(random_state=self.random_state)), steps[-1]]
                 ),
             }
 

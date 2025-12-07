@@ -26,12 +26,22 @@ Based on analysis from the yinyu branch.
 from __future__ import annotations
 
 import argparse
+import os
+import random
 import sys
 from pathlib import Path
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+# ============================================================================
+# REPRODUCIBILITY: Global random seed
+# ============================================================================
+RANDOM_SEED = 42
+
+random.seed(RANDOM_SEED)
+os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
 
 
 def get_project_root() -> Path:
@@ -167,7 +177,6 @@ def train_rf_variant(
         Training metrics if successful.
     """
     import numpy as np
-
     from connectopy.models import ConnectomeRandomForest
 
     cols = feature_names + ["alc_y"]
@@ -192,7 +201,9 @@ def train_rf_variant(
         print(f"    Positive rate: {y.mean():.3f}")
 
     # Train with CV
-    clf = ConnectomeRandomForest(n_estimators=500, class_weight="balanced", random_state=42)
+    clf = ConnectomeRandomForest(
+        n_estimators=500, class_weight="balanced", random_state=RANDOM_SEED
+    )
     metrics = clf.fit_with_cv(
         X,
         y,
@@ -254,7 +265,6 @@ def train_ebm_variant(
         Training metrics if successful.
     """
     import numpy as np
-
     from connectopy.models import ConnectomeEBM
 
     cols = feature_names + ["alc_y"]
@@ -285,7 +295,7 @@ def train_ebm_variant(
             learning_rate=0.01,
             max_leaves=3,
             interactions=0,
-            random_state=42,
+            random_state=RANDOM_SEED,
         )
         metrics = clf.fit_with_cv(
             X,
@@ -401,7 +411,6 @@ def run_alcohol_analysis(
         Whether to print progress.
     """
     import pandas as pd
-
     from connectopy.models import get_cognitive_features, get_connectome_features
 
     # Set defaults for mutable arguments

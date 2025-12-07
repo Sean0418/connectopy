@@ -27,6 +27,8 @@ The pipeline includes:
 """
 
 import argparse
+import os
+import random
 import sys
 from pathlib import Path
 
@@ -35,6 +37,14 @@ try:
     from Runners.setup_environment import relaunch_in_venv, setup_environment
 except ImportError:
     from setup_environment import relaunch_in_venv, setup_environment  # type: ignore[no-redef]
+
+# ============================================================================
+# REPRODUCIBILITY: Global random seed
+# ============================================================================
+RANDOM_SEED = 42
+
+random.seed(RANDOM_SEED)
+os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
 
 
 def get_project_root() -> Path:
@@ -70,9 +80,8 @@ def check_raw_connectomes_exist(data_dir: Path) -> bool:
 def run_pca_analysis(data_dir: Path, output_dir: Path) -> None:
     """Run PCA on raw connectome data."""
     import numpy as np
-    from scipy.io import loadmat
-
     from connectopy.analysis import ConnectomePCA
+    from scipy.io import loadmat
 
     print("Loading raw structural connectome data...")
     sc_path = data_dir / "raw" / "SC" / "HCP_cortical_DesikanAtlas_SC.mat"
@@ -143,10 +152,9 @@ def run_pca_analysis(data_dir: Path, output_dir: Path) -> None:
 def run_vae_analysis(data_dir: Path, output_dir: Path, epochs: int = 200) -> None:
     """Run VAE on raw connectome data."""
     import numpy as np
+    from connectopy.analysis import ConnectomeVAE
     from scipy.io import loadmat
     from sklearn.model_selection import train_test_split
-
-    from connectopy.analysis import ConnectomeVAE
 
     print("Loading raw structural connectome data...")
     sc_path = data_dir / "raw" / "SC" / "HCP_cortical_DesikanAtlas_SC.mat"
@@ -198,7 +206,7 @@ def run_vae_analysis(data_dir: Path, output_dir: Path, epochs: int = 200) -> Non
     X_scaled = scaler.fit_transform(X)
 
     # Train/val split
-    X_train, X_val = train_test_split(X_scaled, test_size=0.2, random_state=42)
+    X_train, X_val = train_test_split(X_scaled, test_size=0.2, random_state=RANDOM_SEED)
 
     print(f"Training VAE for {epochs} epochs...")
     print(f"  Training: {len(X_train)} subjects, Validation: {len(X_val)} subjects")
@@ -268,7 +276,6 @@ def run_ml_classification(data, output_dir: Path):
     """
     import numpy as np
     import pandas as pd
-
     from connectopy.models import (
         ConnectomeEBM,
         ConnectomeRandomForest,
@@ -345,7 +352,9 @@ def run_ml_classification(data, output_dir: Path):
 
         # Train Random Forest with CV
         print("\n  Training Random Forest with GridSearchCV...")
-        rf = ConnectomeRandomForest(n_estimators=500, class_weight="balanced", random_state=42)
+        rf = ConnectomeRandomForest(
+            n_estimators=500, class_weight="balanced", random_state=RANDOM_SEED
+        )
         try:
             rf_metrics = rf.fit_with_cv(
                 X,
@@ -380,7 +389,7 @@ def run_ml_classification(data, output_dir: Path):
                 learning_rate=0.01,
                 max_leaves=3,
                 interactions=0,
-                random_state=42,
+                random_state=RANDOM_SEED,
             )
             ebm_metrics = ebm.fit_with_cv(
                 X,
@@ -517,7 +526,7 @@ def run_mediation_analysis(data_dir: Path, output_dir: Path) -> "dict | None":
         alcohol_col=alcohol_col,
         sex_col="Gender",
         n_bootstrap=1000,
-        random_state=42,
+        random_state=RANDOM_SEED,
     )
 
     # Save results
@@ -559,7 +568,6 @@ def generate_plots(data, output_dir: Path, dimorphism_results=None):
     matplotlib.use("Agg")  # Non-interactive backend
     import matplotlib.pyplot as plt
     import pandas as pd
-
     from connectopy.visualization import (
         plot_dimorphism_comparison,
         plot_feature_importance,

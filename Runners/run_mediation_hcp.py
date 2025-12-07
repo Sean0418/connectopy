@@ -17,6 +17,8 @@ Data Sources:
     - Alcohol Measures: SSAGA DSM-IV from table2_hcp.csv
 """
 
+import os
+import random
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -25,6 +27,15 @@ import pandas as pd
 import seaborn as sns
 from scipy.io import loadmat
 from sklearn.linear_model import LinearRegression
+
+# ============================================================================
+# REPRODUCIBILITY: Global random seed
+# ============================================================================
+RANDOM_SEED = 42
+
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)  # noqa: NPY002
+os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
 
 # Configuration
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -298,7 +309,7 @@ def run_mediation_analysis(
                     M = (M - M.mean()) / M.std() if M.std() > 0 else M
                     Y = (Y - Y.mean()) / Y.std() if Y.std() > 0 else Y
 
-                    med = MediationAnalysis(n_bootstrap=2000, random_state=42)
+                    med = MediationAnalysis(n_bootstrap=2000, random_state=RANDOM_SEED)
                     res = med.fit(X, M, Y)
 
                     results.append(
