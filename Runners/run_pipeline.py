@@ -12,6 +12,7 @@ Options:
     --skip-vae           Skip VAE analysis
     --skip-dimorphism    Skip dimorphism analysis
     --skip-ml            Skip ML classification
+    --skip-mediation     Skip mediation analysis
     --skip-plots         Skip visualization generation
     --quick              Run quick mode (skip PCA, VAE, and plots)
 
@@ -21,7 +22,8 @@ The pipeline includes:
     3. VAE Analysis - Variational autoencoder for nonlinear embeddings
     4. Dimorphism Analysis - Sexual dimorphism statistical tests
     5. ML Classification - Train gender classifier
-    6. Visualization - Generate analysis plots
+    6. Mediation Analysis - Brain network mediation of cognitive-alcohol relationships
+    7. Visualization - Generate analysis plots
 """
 
 import argparse
@@ -338,6 +340,116 @@ def run_ml_classification(data, output_dir: Path):
     return importance, metrics
 
 
+def run_mediation_analysis(data_dir: Path, output_dir: Path) -> "dict | None":
+    """Run sex-stratified mediation analysis.
+
+    Tests whether brain networks (SC/FC) mediate the relationship between
+    cognitive traits and alcohol dependence, stratified by sex.
+
+    Model: Cognitive → Brain Network → Alcohol Dependence
+    """
+    from brain_connectome.analysis import run_multiple_mediations
+    from brain_connectome.data import (
+        create_alcohol_severity_score,
+        create_composite_scores,
+        load_merged_hcp_data,
+    )
+
+    print("Loading HCP data for mediation analysis...")
+
+    try:
+        # Load and merge all data
+        merged = load_merged_hcp_data(
+            data_dir / "raw",
+            n_sc_components=10,
+            n_fc_components=10,
+        )
+
+        # Create composite scores
+        merged = create_composite_scores(merged)
+        merged = create_alcohol_severity_score(merged)
+
+        print(f"  Loaded {len(merged)} subjects with all required data")
+
+    except (FileNotFoundError, ImportError) as e:
+        print(f"  Could not load HCP data: {e}")
+        print("  Skipping mediation analysis.")
+        return None
+
+    # Define variables for mediation
+    cognitive_cols = ["FluidComposite", "CrystalComposite", "ListSort_Unadj", "PMAT24_A_CR"]
+    brain_cols = [f"SC_PC{i}" for i in range(1, 6)] + [f"FC_PC{i}" for i in range(1, 6)]
+    alcohol_col = "AlcoholSeverity"
+
+    # Filter to available columns
+    cognitive_cols = [c for c in cognitive_cols if c in merged.columns]
+    brain_cols = [c for c in brain_cols if c in merged.columns]
+
+    if not cognitive_cols:
+        print("  No cognitive columns available")
+        return None
+
+    if not brain_cols:
+        print("  No brain network columns available")
+        return None
+
+    if alcohol_col not in merged.columns:
+        print(f"  Alcohol column '{alcohol_col}' not found")
+        return None
+
+    # Remove rows with missing values
+    analysis_cols = cognitive_cols + brain_cols + [alcohol_col, "Gender"]
+    merged_clean = merged.dropna(subset=analysis_cols)
+    print(f"  {len(merged_clean)} subjects after removing missing values")
+
+    if len(merged_clean) < 100:
+        print("  Insufficient subjects for mediation analysis")
+        return None
+
+    # Run mediation analyses
+    print(f"\nTesting {len(cognitive_cols)} cognitive × {len(brain_cols)} brain pathways...")
+    results = run_multiple_mediations(
+        data=merged_clean,
+        cognitive_cols=cognitive_cols,
+        brain_cols=brain_cols,
+        alcohol_col=alcohol_col,
+        sex_col="Gender",
+        n_bootstrap=1000,
+        random_state=42,
+    )
+
+    # Save results
+    mediation_output = output_dir / "mediation_results.csv"
+    results.to_csv(mediation_output, index=False)
+    print(f"\nSaved results to {mediation_output}")
+
+    # Summary
+    n_male_sig = results["male_significant"].sum()
+    n_female_sig = results["female_significant"].sum()
+    n_sex_diff = results["sex_diff_significant"].sum()
+
+    print("\n" + "=" * 50)
+    print("MEDIATION ANALYSIS SUMMARY")
+    print("=" * 50)
+    print(f"Total pathways tested: {len(results)}")
+    print(f"Significant in males: {n_male_sig}")
+    print(f"Significant in females: {n_female_sig}")
+    print(f"Significant sex differences: {n_sex_diff}")
+
+    # Show top sex differences
+    if n_sex_diff > 0:
+        print("\nTop pathways with sex differences:")
+        sex_diff = results[results["sex_diff_significant"]].copy()
+        sex_diff["abs_diff"] = sex_diff["sex_difference"].abs()
+        top_diff = sex_diff.nlargest(5, "abs_diff")
+        for _, row in top_diff.iterrows():
+            print(f"  {row['cognitive']} → {row['brain_network']}:")
+            print(f"    Male: {row['male_indirect']:.4f}, Female: {row['female_indirect']:.4f}")
+            print(f"    Difference: {row['sex_difference']:.4f}")
+
+    return results.to_dict()
+
+
 def generate_plots(data, output_dir: Path, dimorphism_results=None, ml_results=None):
     """Generate visualization plots."""
     import matplotlib
@@ -466,6 +578,7 @@ def run_pipeline(
     skip_vae: bool = False,
     skip_dimorphism: bool = False,
     skip_ml: bool = False,
+    skip_mediation: bool = False,
     skip_plots: bool = False,
 ) -> None:
     """Run the complete analysis pipeline."""
@@ -578,13 +691,28 @@ def run_pipeline(
     else:
         print("\nStep 5: Skipping ML Classification (--skip-ml)")
 
-    # Step 6: Visualization
+    # Step 6: Mediation Analysis
+    if not skip_mediation:
+        print("\nStep 6: Mediation Analysis")
+        print("-" * 40)
+        mediation_output = output_dir / "mediation_results.csv"
+        if mediation_output.exists():
+            print(f"Mediation results already exist at {mediation_output}")
+            mediation_df = pd.read_csv(mediation_output)
+            n_sex_diff = mediation_df["sex_diff_significant"].sum()
+            print(f"Found {n_sex_diff} pathways with significant sex differences")
+        else:
+            run_mediation_analysis(data_dir, output_dir)
+    else:
+        print("\nStep 6: Skipping Mediation Analysis (--skip-mediation)")
+
+    # Step 7: Visualization
     if not skip_plots:
-        print("\nStep 6: Generating Visualizations")
+        print("\nStep 7: Generating Visualizations")
         print("-" * 40)
         generate_plots(data, output_dir, dimorphism_results, ml_results)
     else:
-        print("\nStep 6: Skipping Visualization (--skip-plots)")
+        print("\nStep 7: Skipping Visualization (--skip-plots)")
 
     # Summary
     print("\n" + "=" * 60)
@@ -594,7 +722,8 @@ def run_pipeline(
     print("  - pca_variance.csv, pca_scores.csv (if PCA ran)")
     print("  - vae_latent.csv, vae_training_history.csv (if VAE ran)")
     print("  - dimorphism_results.csv (if dimorphism analysis ran)")
-    print("  - ml_results.csv (if ML classification ran)")
+    print("  - ml_results.csv, ebm_results.csv (if ML classification ran)")
+    print("  - mediation_results.csv (if mediation analysis ran)")
     print("  - plots/ (if visualization ran)")
 
 
@@ -633,6 +762,11 @@ Examples:
         help="Skip the ML classification step",
     )
     parser.add_argument(
+        "--skip-mediation",
+        action="store_true",
+        help="Skip the mediation analysis step",
+    )
+    parser.add_argument(
         "--skip-plots",
         action="store_true",
         help="Skip the visualization step",
@@ -664,6 +798,7 @@ Examples:
         skip_vae=args.skip_vae,
         skip_dimorphism=args.skip_dimorphism,
         skip_ml=args.skip_ml,
+        skip_mediation=args.skip_mediation,
         skip_plots=args.skip_plots,
     )
 

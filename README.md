@@ -14,6 +14,7 @@ A Python package for analyzing brain structural and functional connectomes from 
 - **Data Loading**: Load and merge HCP structural/functional connectome data with traits
 - **Dimensionality Reduction**: PCA and VAE for connectome feature extraction
 - **Statistical Analysis**: Sexual dimorphism analysis with effect sizes and FDR correction
+- **Mediation Analysis**: Test brain network mediation of cognitive-alcohol relationships by sex
 - **Machine Learning**: Random Forest, XGBoost, and EBM (Explainable Boosting) classifiers
 - **Visualization**: Publication-ready plots for connectome analysis
 - **Reproducibility**: Docker container and automated pipelines
@@ -87,8 +88,9 @@ python Runners/run_pipeline.py --skip-vae --skip-plots
 | 2 | PCA Analysis | `pca_variance.csv`, `pca_scores.csv` |
 | 3 | VAE Analysis | `vae_latent.csv`, `vae_training_history.csv` |
 | 4 | Dimorphism Analysis | `dimorphism_results.csv` |
-| 5 | ML Classification | `ml_results.csv` |
-| 6 | Visualization | `output/plots/*.png` |
+| 5 | ML Classification | `ml_results.csv`, `ebm_results.csv` |
+| 6 | Mediation Analysis | `mediation_results.csv` |
+| 7 | Visualization | `output/plots/*.png` |
 
 ## Python API
 
@@ -115,6 +117,29 @@ y = (data["Gender"] == "M").astype(int).values
 clf = ConnectomeRandomForest()
 clf.fit(X, y, feature_names=features)
 print(f"Top biomarkers:\n{clf.get_top_features(5)}")
+```
+
+### Mediation Analysis
+
+Test whether brain networks mediate the relationship between cognitive traits and alcohol outcomes:
+
+```python
+from brain_connectome.analysis import SexStratifiedMediation
+
+# Run sex-stratified mediation analysis
+# Model: Cognitive → Brain Network → Alcohol Dependence
+mediation = SexStratifiedMediation(n_bootstrap=1000)
+result = mediation.fit(
+    data=df,
+    cognitive_col="FluidIntelligence",
+    brain_col="SC_PC1",
+    alcohol_col="AlcoholSeverity",
+    sex_col="Gender",
+)
+
+print(f"Male indirect effect: {result.male.indirect_effect:.4f}")
+print(f"Female indirect effect: {result.female.indirect_effect:.4f}")
+print(f"Sex difference significant: {result.diff_significant}")
 ```
 
 ## Project Structure
