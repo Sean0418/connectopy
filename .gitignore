@@ -14,10 +14,14 @@
 
 /AngioNet/
 
-# Output files
+# Output files (generated, not tracked)
 *.html
 output/*.csv
 output/*.rds
+output/*.pdf
+output/*.png
+output/*.md
+output/convert_to_pdf.py
 
 # Python
 __pycache__/

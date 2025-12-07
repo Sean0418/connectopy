@@ -278,11 +278,11 @@ def load_merged_hcp_data(
     fc_ids, fc_pca = load_functional_connectivity(data_dir, load_raw=False)
 
     # Create DataFrames for network data
-    sc_cols = [f"SC_PC{i+1}" for i in range(min(n_sc_components, sc_pca.shape[1]))]
+    sc_cols = [f"SC_PC{i + 1}" for i in range(min(n_sc_components, sc_pca.shape[1]))]
     sc_df = pd.DataFrame(sc_pca[:, : len(sc_cols)], columns=sc_cols)
     sc_df["Subject"] = sc_ids
 
-    fc_cols = [f"FC_PC{i+1}" for i in range(min(n_fc_components, fc_pca.shape[1]))]
+    fc_cols = [f"FC_PC{i + 1}" for i in range(min(n_fc_components, fc_pca.shape[1]))]
     fc_df = pd.DataFrame(fc_pca[:, : len(fc_cols)], columns=fc_cols)
     fc_df["Subject"] = fc_ids
 

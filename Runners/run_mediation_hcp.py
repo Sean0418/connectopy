@@ -211,10 +211,10 @@ def load_hcp_data() -> pd.DataFrame:
     n_sc = min(10, sc_pca.shape[1]) if sc_pca is not None else 0
     n_fc = min(10, fc_pca.shape[1]) if fc_pca is not None else 0
 
-    sc_df = pd.DataFrame(sc_pca[:, :n_sc], columns=[f"SC_PC{i+1}" for i in range(n_sc)])
+    sc_df = pd.DataFrame(sc_pca[:, :n_sc], columns=[f"SC_PC{i + 1}" for i in range(n_sc)])
     sc_df["Subject"] = sc_ids
 
-    fc_df = pd.DataFrame(fc_pca[:, :n_fc], columns=[f"FC_PC{i+1}" for i in range(n_fc)])
+    fc_df = pd.DataFrame(fc_pca[:, :n_fc], columns=[f"FC_PC{i + 1}" for i in range(n_fc)])
     fc_df["Subject"] = fc_ids
 
     # Merge all data
@@ -502,7 +502,7 @@ def print_summary(results_df: pd.DataFrame, comparison_df: pd.DataFrame) -> None
 
     print(f"\n📊 Total mediation tests: {len(results_df)}")
     print(f"   Significant (95% CI excludes 0): {len(sig_results)}")
-    print(f"   Significance rate: {len(sig_results)/len(results_df)*100:.1f}%")
+    print(f"   Significance rate: {len(sig_results) / len(results_df) * 100:.1f}%")
 
     # Results by alcohol outcome
     print("\n📈 Results by Alcohol Outcome:")
