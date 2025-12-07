@@ -6,6 +6,14 @@ import pytest
 
 from brain_connectome.models.classifiers import ConnectomeRandomForest
 
+# Check if EBM is available
+try:
+    from brain_connectome.models.classifiers import ConnectomeEBM
+
+    EBM_AVAILABLE = True
+except ImportError:
+    EBM_AVAILABLE = False
+
 
 class TestConnectomeRandomForest:
     """Tests for ConnectomeRandomForest class."""
@@ -113,3 +121,96 @@ class TestConnectomeRandomForest:
         pred2 = clf2.predict(X[:10])
 
         np.testing.assert_array_equal(pred1, pred2)
+
+
+@pytest.mark.skipif(not EBM_AVAILABLE, reason="interpret package not installed")
+class TestConnectomeEBM:
+    """Tests for ConnectomeEBM (Explainable Boosting Machine) class."""
+
+    @pytest.fixture
+    def binary_classification_data(self):
+        """Generate binary classification data."""
+        np.random.seed(42)
+        n_samples = 100
+        n_features = 20
+
+        X = np.random.randn(n_samples, n_features)
+        # Make class separable
+        y = (X[:, 0] + X[:, 1] > 0).astype(int)
+
+        feature_names = [f"Feature_{i}" for i in range(n_features)]
+
+        return X, y, feature_names
+
+    def test_fit(self, binary_classification_data):
+        """Test EBM fitting."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeEBM(max_bins=32, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        assert clf.feature_names is not None
+        assert clf.feature_importances_ is not None
+
+    def test_predict(self, binary_classification_data):
+        """Test EBM prediction."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeEBM(max_bins=32, random_state=42)
+        clf.fit(X[:80], y[:80], feature_names=feature_names)
+
+        predictions = clf.predict(X[80:])
+
+        assert len(predictions) == 20
+        assert set(predictions).issubset({0, 1})
+
+    def test_feature_importance(self, binary_classification_data):
+        """Test EBM feature importance extraction."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeEBM(max_bins=32, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        importances = clf.feature_importances_
+
+        assert isinstance(importances, pd.DataFrame)
+        assert "Feature" in importances.columns
+        assert "Importance" in importances.columns
+
+    def test_evaluate(self, binary_classification_data):
+        """Test EBM evaluation."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeEBM(max_bins=32, random_state=42)
+        clf.fit(X[:80], y[:80], feature_names=feature_names)
+
+        metrics = clf.evaluate(X[80:], y[80:])
+
+        assert "accuracy" in metrics
+        assert "confusion_matrix" in metrics
+        assert "classification_report" in metrics
+        assert 0 <= metrics["accuracy"] <= 1
+
+    def test_explain_global(self, binary_classification_data):
+        """Test EBM global explanation."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeEBM(max_bins=32, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        explanation = clf.explain_global()
+
+        # EBM returns an explanation object
+        assert explanation is not None
+
+    def test_explain_local(self, binary_classification_data):
+        """Test EBM local explanation."""
+        X, y, feature_names = binary_classification_data
+
+        clf = ConnectomeEBM(max_bins=32, random_state=42)
+        clf.fit(X, y, feature_names=feature_names)
+
+        explanation = clf.explain_local(X[:5])
+
+        # EBM returns an explanation object
+        assert explanation is not None

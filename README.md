@@ -14,7 +14,7 @@ A Python package for analyzing brain structural and functional connectomes from 
 - **Data Loading**: Load and merge HCP structural/functional connectome data with traits
 - **Dimensionality Reduction**: PCA and VAE for connectome feature extraction
 - **Statistical Analysis**: Sexual dimorphism analysis with effect sizes and FDR correction
-- **Machine Learning**: Random Forest and XGBoost classifiers for trait prediction
+- **Machine Learning**: Random Forest, XGBoost, and EBM (Explainable Boosting) classifiers
 - **Visualization**: Publication-ready plots for connectome analysis
 - **Reproducibility**: Docker container and automated pipelines
 
