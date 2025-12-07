@@ -1252,6 +1252,7 @@ class ConnectomeSVM:
             best_score = best_grid.best_score_
 
         grid = best_grid
+        assert grid is not None  # Always set by one of the branches above
 
         # Store best model
         self.model = grid.best_estimator_.named_steps["svm"]
@@ -1597,6 +1598,7 @@ class ConnectomeLogistic:
             best_score = best_grid.best_score_
 
         grid = best_grid
+        assert grid is not None  # Always set by one of the branches above
 
         self.model = grid.best_estimator_.named_steps["logistic"]
         self._scaler = grid.best_estimator_.named_steps["scaler"]
