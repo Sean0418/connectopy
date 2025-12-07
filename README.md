@@ -176,12 +176,25 @@ docker build -t brain-connectome .
 docker run -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output brain-connectome
 ```
 
+## Reproducibility Checklist
+
+| Feature | Status |
+|---------|--------|
+| Python package with `pyproject.toml` | ✅ |
+| 6-step automated analysis pipeline | ✅ |
+| CI (linting, type checking, tests) | ✅ |
+| Docker container (multi-arch: amd64 + arm64) | ✅ |
+| GitHub Container Registry hosting | ✅ |
+| Pre-commit hooks | ✅ |
+| Sphinx documentation | ✅ |
+| Reproducibility documentation | ✅ |
+
 ## CI/CD
 
 This project uses GitHub Actions for:
 
 - **CI** (on every push/PR): Linting, type checking, tests across Python 3.10-3.12
-- **Docker** (on push to main): Builds and pushes to GitHub Container Registry
+- **Docker** (on push to main): Builds and pushes multi-arch images to GitHub Container Registry
 
 ## Legacy R Code
 
