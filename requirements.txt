@@ -10,6 +10,7 @@ scipy==1.12.0
 # Machine Learning
 scikit-learn==1.4.0
 xgboost==2.0.3
+interpret==0.6.2
 
 # Deep Learning (for VAE)
 torch==2.2.0

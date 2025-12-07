@@ -260,9 +260,10 @@ def run_ml_classification(data, output_dir: Path):
     import numpy as np
     from sklearn.model_selection import train_test_split
 
-    from brain_connectome.models import ConnectomeRandomForest
+    from brain_connectome.models import ConnectomeEBM, ConnectomeRandomForest
 
     ml_output = output_dir / "ml_results.csv"
+    ebm_output = output_dir / "ebm_results.csv"
 
     # Prepare features
     struct_pcs = [c for c in data.columns if c.startswith("Struct_PC")]
@@ -294,17 +295,45 @@ def run_ml_classification(data, output_dir: Path):
     clf = ConnectomeRandomForest(n_estimators=500, random_state=42)
     clf.fit(X_train, y_train, feature_names=feature_cols)
 
-    # Evaluate
+    # Evaluate Random Forest
     metrics = clf.evaluate(X_test, y_test)
-    print(f"Test Accuracy: {metrics['accuracy']:.2%}")
+    print(f"Random Forest Accuracy: {metrics['accuracy']:.2%}")
 
     # Save feature importance
     importance = clf.get_top_features(n=20)
     importance.to_csv(ml_output, index=False)
-    print(f"Saved feature importance to {ml_output}")
+    print(f"Saved Random Forest feature importance to {ml_output}")
 
-    print("\nTop 10 features for gender classification:")
+    print("\nTop 10 features for gender classification (Random Forest):")
     print(importance.head(10).to_string(index=False))
+
+    # Train EBM (Explainable Boosting Machine) - from yinyu branch
+    print("\n" + "-" * 40)
+    print("Training EBM (Explainable Boosting Machine)...")
+    try:
+        ebm = ConnectomeEBM(
+            learning_rate=0.01,
+            max_bins=32,
+            max_leaves=3,
+            interactions=0,  # No interactions for interpretability
+            random_state=42,
+        )
+        ebm.fit(X_train, y_train, feature_names=feature_cols)
+
+        # Evaluate EBM
+        ebm_metrics = ebm.evaluate(X_test, y_test)
+        print(f"EBM Accuracy: {ebm_metrics['accuracy']:.2%}")
+
+        # Save EBM feature importance
+        ebm_importance = ebm.get_top_features(n=20)
+        ebm_importance.to_csv(ebm_output, index=False)
+        print(f"Saved EBM feature importance to {ebm_output}")
+
+        print("\nTop 10 features for gender classification (EBM):")
+        print(ebm_importance.head(10).to_string(index=False))
+    except ImportError:
+        print("  interpret package not installed, skipping EBM analysis")
+        print("  Install with: pip install interpret")
 
     return importance, metrics
 
