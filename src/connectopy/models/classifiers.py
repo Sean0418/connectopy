@@ -1608,8 +1608,17 @@ class ConnectomeLogistic:
 
         # Use absolute coefficients as importance
         coefs = np.abs(self.model.coef_[0])
+
+        # Handle feature selection - get selected feature names
+        if "selector" in grid.best_estimator_.named_steps:
+            selector = grid.best_estimator_.named_steps["selector"]
+            selected_mask = selector.get_support()
+            selected_features = [f for f, m in zip(self.feature_names, selected_mask) if m]
+        else:
+            selected_features = self.feature_names
+
         self.feature_importances_ = (
-            pd.DataFrame({"Feature": self.feature_names, "Importance": coefs})
+            pd.DataFrame({"Feature": selected_features, "Importance": coefs})
             .sort_values("Importance", ascending=False)
             .reset_index(drop=True)
         )
