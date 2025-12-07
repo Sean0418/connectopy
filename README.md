@@ -92,6 +92,22 @@ python Runners/run_pipeline.py --skip-vae --skip-plots
 | 6 | Mediation Analysis | `mediation_results.csv` |
 | 7 | Visualization | `output/plots/*.png` |
 
+### Mediation Analysis on HCP Data
+
+For a comprehensive sex-stratified mediation analysis:
+
+```bash
+# Run mediation analysis on HCP data
+python Runners/run_mediation_hcp.py
+
+# Outputs:
+# - output/mediation_results_full.csv
+# - output/mediation_sex_comparison.csv
+# - output/mediation_results_significant.csv
+# - output/mediation_*.png (visualizations)
+# - output/MEDIATION_ANALYSIS_RESULTS.pdf (report)
+```
+
 ## Python API
 
 ```python
@@ -147,9 +163,9 @@ print(f"Sex difference significant: {result.diff_significant}")
 ```
 Brain-Connectome/
 ├── brain_connectome/           # Python package
-│   ├── data/                   # Data loading and preprocessing
-│   ├── analysis/               # PCA, VAE, dimorphism analysis
-│   ├── models/                 # ML classifiers
+│   ├── data/                   # Data loading (HCPLoader, preprocessing)
+│   ├── analysis/               # PCA, VAE, dimorphism, mediation analysis
+│   ├── models/                 # ML classifiers (RF, XGBoost, EBM)
 │   └── visualization/          # Plotting functions
 ├── Runners/                    # Pipeline execution scripts
 ├── tests/                      # Unit tests
@@ -201,6 +217,16 @@ mypy brain_connectome/
 ```bash
 cd docs
 make html
+
+# View the docs:
+# macOS
+open _build/html/index.html
+
+# Linux
+xdg-open _build/html/index.html
+
+# Windows
+start _build/html/index.html
 ```
 
 ### Building Docker Image Locally
@@ -215,7 +241,7 @@ docker run -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output brain-connectom
 | Feature | Status |
 |---------|--------|
 | Python package with `pyproject.toml` | ✅ |
-| 6-step automated analysis pipeline | ✅ |
+| 7-step automated analysis pipeline | ✅ |
 | CI (linting, type checking, tests) | ✅ |
 | Docker container (multi-arch: amd64 + arm64) | ✅ |
 | GitHub Container Registry hosting | ✅ |
