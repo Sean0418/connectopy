@@ -4,3 +4,4 @@ Data/raw_struct_pca.csv
 Data/raw_func_pca.csv
 Data/vae_df.csv
 .RData
+.Rproj.user
