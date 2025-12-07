@@ -30,6 +30,22 @@ ConnectomeEBM
    :undoc-members:
    :show-inheritance:
 
+ConnectomeSVM
+-------------
+
+.. autoclass:: connectopy.models.classifiers.ConnectomeSVM
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ConnectomeLogistic
+------------------
+
+.. autoclass:: connectopy.models.classifiers.ConnectomeLogistic
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Utility Functions
 -----------------
 
