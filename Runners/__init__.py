@@ -1,4 +1,4 @@
-"""Pipeline runners for Brain Connectome analysis.
+"""Pipeline runners for Connectopy analysis.
 
 Available runners:
 - run_pipeline.py: Full analysis pipeline (PCA, VAE, dimorphism, ML, mediation)

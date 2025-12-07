@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to Brain Connectome! We welcome contributions from the community.
+Thank you for your interest in contributing to Connectopy! We welcome contributions from the community.
 
 ## Getting Started
 

@@ -1,4 +1,4 @@
-# Brain Connectome - Pinned Dependencies
+# Connectopy - Pinned Dependencies
 # Generated for reproducibility
 # Python 3.9+
 

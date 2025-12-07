@@ -1,6 +1,6 @@
 # Data Directory
 
-This directory contains all data files for the Brain Connectome analysis.
+This directory contains all data files for the Connectopy analysis.
 
 ## Structure
 
@@ -53,4 +53,3 @@ data/
 Raw data must be downloaded from [ConnectomeDB](https://db.humanconnectome.org/) after agreeing to HCP data usage terms.
 
 **Note**: Large data files (`.mat`, `.csv`) are excluded from git via `.gitignore`.
-
