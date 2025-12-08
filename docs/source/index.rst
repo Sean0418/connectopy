@@ -1,4 +1,4 @@
-Brain Connectome Documentation
+Connectopy Documentation
 ==============================
 
 **connectopy** is a Python package for analyzing brain structural and functional
